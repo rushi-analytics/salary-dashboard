@@ -4,12 +4,61 @@
   <meta charset="utf-8" />
   <title>Salary Insights Dashboard — Starter</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="assets/style.css" />
-  
+
+  <!-- Embedded styles (so this single file works) -->
+  <style>
+    :root{ --bg:#f6f8fb; --card:#fff; --muted:#6b7a86; --accent:#4aa3f0; --pad:14px; }
+    body{ font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#0f1720; margin:0; padding:20px 0; }
+    .container{ max-width:980px; margin:0 auto; padding:20px; }
+    header{ margin-bottom:18px; }
+    header h1{ margin:0 0 6px 0; font-size:28px; }
+    header p{ margin:0; color:var(--muted); }
+
+    /* Controls */
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:12px 0; }
+    .controls select, .controls input[type="text"], .controls button, .controls input[type="file"]{
+      padding:8px 10px; border-radius:8px; border:1px solid #e3e7ee; background:#fff;
+      font-size:13px;
+    }
+
+    /* Summary */
+    .summary{ margin-top:6px; }
+    #stats{ background:var(--card); padding:10px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    #stats strong{ margin-right:8px; }
+    #stats span{ color:var(--muted); }
+
+    /* Insights container + cards */
+    #insightsContainer{ display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
+    .insight-card{
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+      padding: 12px;
+      min-width: 220px;
+      max-width: 420px;
+    }
+    .insight-card h3{ margin:0 0 8px 0; font-size:16px; }
+    .insight-card p{ margin:6px 0; font-size:14px; color:#213547; }
+    .bar-bg{ background:#eef2f7; border-radius:8px; height:12px; overflow:hidden; }
+    .bar-fill{ height:12px; background:var(--accent); border-radius:8px 0 0 8px; }
+
+    /* Charts */
+    .charts{ display:grid; grid-template-columns:1fr; gap:14px; margin-top:16px; }
+    .chart-card{ background:var(--card); padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); }
+    canvas{ width:100% !important; height:280px !important; }
+
+    footer{ margin-top:18px; color:var(--muted); font-size:13px; text-align:center; }
+    @media(min-width:900px){
+      .charts{ grid-template-columns: 1fr 1fr; }
+      .chart-card{ height:320px; }
+      canvas{ height:300px !important; }
+    }
+  </style>
+
   <!-- CSV parser -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  
-  <!-- Chart.js library -->
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -35,6 +84,19 @@
         <option value="5+">5+ years</option>
       </select>
 
+      <!-- ---------- NEW: Insights controls ---------- -->
+      <select id="skillLevelFilter" title="Skill level">
+        <option value="">All levels</option>
+        <option value="novice">Novice</option>
+        <option value="mid">Mid</option>
+        <option value="senior">Senior</option>
+      </select>
+
+      <input id="userSkills" type="text" placeholder="Your skills (comma separated)" style="min-width:220px" />
+
+      <button id="analyzeBtn">Analyze</button>
+      <!-- ---------- end new controls ---------- -->
+
       <button id="downloadBtn">Download Filtered CSV</button>
     </section>
 
@@ -49,6 +111,9 @@
       </div>
     </section>
 
+    <!-- Insights container (JS inserts cards here) -->
+    <div id="insightsContainer"></div>
+
     <!-- Charts -->
     <section class="charts">
       <div class="chart-card"><canvas id="salaryDist"></canvas></div>
@@ -61,10 +126,11 @@
     </footer>
   </div>
 
-
 <script>
-// --- UTILITY FUNCTIONS ---
+// ----------------- Utilities & state -----------------
 function toNumber(v){ return v === '' || v === null || v === undefined ? NaN : +v; }
+
+// median function (avoid naming conflict with DOM id 'median')
 function medianCalc(arr){
   const sorted = arr.slice().sort((a,b)=>a-b);
   const n = sorted.length;
@@ -72,89 +138,84 @@ function medianCalc(arr){
   const mid = Math.floor(n/2);
   return n%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid]) / 2;
 }
+
 function downloadCSV(rows, filename='filtered.csv'){
   const csv = Papa.unparse(rows);
   const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; 
-  a.download = filename; 
+  a.href = url;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
-
 
 // --- STATE ---
 let rawData = [];
 let filtered = [];
 
-// DOM elements
+// DOM refs
 const fileInput = document.getElementById('fileInput');
 const roleFilter = document.getElementById('roleFilter');
 const countryFilter = document.getElementById('countryFilter');
 const expFilter = document.getElementById('expFilter');
 const downloadBtn = document.getElementById('downloadBtn');
+const analyzeBtn = document.getElementById('analyzeBtn');
 
-// stat elements (fix: make sure these IDs exist in HTML)
-const avg = document.getElementById('avg');
-const median = document.getElementById('median');
-const min = document.getElementById('min');
-const max = document.getElementById('max');
+// stat elements
+const avgEl = document.getElementById('avg');
+const medianEl = document.getElementById('median');
+const minEl = document.getElementById('min');
+const maxEl = document.getElementById('max');
 
-
-// --- CHART VARIABLES ---
+// charts
 let salaryDistChart, salaryByExpChart, cityBarChart;
 
-
-// --- INITIALIZE CHARTS ---
+// ----------------- Charts setup -----------------
 function createChart(ctx, cfg){ return new Chart(ctx, cfg); }
 
 function buildCharts(){
+  // Salary distribution (vertical bar)
   salaryDistChart = createChart(
     document.getElementById('salaryDist'),
     {
       type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Count', data: [] }] },
-      options: { responsive:true, plugins:{legend:{display:false}} }
+      data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: 'rgba(74,163,240,0.6)' }] },
+      options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
     }
   );
 
+  // salary by experience
   salaryByExpChart = createChart(
     document.getElementById('salaryByExp'),
     {
       type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Avg Salary', data: [] }] },
-      options: { responsive:true }
+      data: { labels: [], datasets: [{ label: 'Avg Salary', data: [], backgroundColor: 'rgba(74,163,240,0.6)' }] },
+      options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
     }
   );
 
+  // city horizontal bar
   cityBarChart = createChart(
     document.getElementById('cityBar'),
     {
       type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Avg Salary', data: [] }] },
-      options: { indexAxis:'y', responsive:true }
+      data: { labels: [], datasets: [{ label: 'Avg Salary', data: [], backgroundColor: 'rgba(74,163,240,0.6)' }] },
+      options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
     }
   );
 }
 
-
-// --- UPDATE FILTER OPTIONS ---
+// ----------------- Filters UI -----------------
 function updateFiltersUI(){
-  const roles = Array.from(new Set(rawData.map(r=>r.role))).sort();
-  const countries = Array.from(new Set(rawData.map(r=>r.country))).sort();
+  const roles = Array.from(new Set(rawData.map(r=>r.role))).filter(Boolean).sort();
+  const countries = Array.from(new Set(rawData.map(r=>r.country))).filter(Boolean).sort();
 
-  roleFilter.innerHTML = '<option value="">All Roles</option>' +
-    roles.map(r=>`<option>${r}</option>`).join('');
-
-  // fixed: use 'c' as the map parameter, not an undefined variable
-  countryFilter.innerHTML = '<option value="">All Countries</option>' +
-    countries.map(c=>`<option>${c}</option>`).join('');
+  roleFilter.innerHTML = '<option value="">All Roles</option>' + roles.map(r=>`<option>${r}</option>`).join('');
+  countryFilter.innerHTML = '<option value="">All Countries</option>' + countries.map(c=>`<option>${c}</option>`).join('');
 }
 
-
-
-// --- APPLY FILTERS ---
+// ----------------- Apply Filters -----------------
 function applyFilters(){
   const role = roleFilter.value;
   const country = countryFilter.value;
@@ -176,37 +237,32 @@ function applyFilters(){
 
   renderStats();
   renderCharts();
+  renderInsights(); // update insights as filters change
 }
 
-
-// --- SUMMARY STATS ---
+// ----------------- Summary stats -----------------
 function renderStats(){
-  const salaries = filtered
-      .map(r=>toNumber(r.annual_salary_inr))
-      .filter(v=>!isNaN(v));
-
+  const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   if(salaries.length===0){
-    avg.textContent = median.textContent = min.textContent = max.textContent = "-";
+    avgEl.textContent = medianEl.textContent = minEl.textContent = maxEl.textContent = "-";
     return;
   }
-
   const avgV = Math.round(salaries.reduce((a,b)=>a+b,0)/salaries.length);
   const medV = Math.round(medianCalc(salaries));
   const minV = Math.round(Math.min(...salaries));
   const maxV = Math.round(Math.max(...salaries));
 
-  avg.textContent = `Avg: ₹${avgV.toLocaleString()}`;
-  median.textContent = `Median: ₹${medV.toLocaleString()}`;
-  min.textContent = `Min: ₹${minV.toLocaleString()}`;
-  max.textContent = `Max: ₹${maxV.toLocaleString()}`;
+  avgEl.textContent = `Avg: ₹${avgV.toLocaleString()}`;
+  medianEl.textContent = `Median: ₹${medV.toLocaleString()}`;
+  minEl.textContent = `Min: ₹${minV.toLocaleString()}`;
+  maxEl.textContent = `Max: ₹${maxV.toLocaleString()}`;
 }
 
-
-// --- RENDER CHARTS ---
+// ----------------- Charts rendering -----------------
 function renderCharts(){
   const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
 
-  // Salary Distribution
+  // Salary Distribution buckets
   let labels = [];
   let counts = [];
 
@@ -214,8 +270,7 @@ function renderCharts(){
     const minV = Math.min(...salaries);
     const maxV = Math.max(...salaries);
     const bucketCount = 8;
-    const range = maxV - minV;
-
+    const range = maxV - minV || 1;
     const bucketSize = range / bucketCount;
 
     labels = [];
@@ -224,7 +279,7 @@ function renderCharts(){
     for(let i=0;i<bucketCount;i++){
       const start = Math.round(minV + i*bucketSize);
       const end = Math.round(minV + (i+1)*bucketSize);
-      labels.push(`₹${start} - ₹${end}`);
+      labels.push(`₹${start.toLocaleString()} - ₹${end.toLocaleString()}`);
     }
 
     salaries.forEach(v=>{
@@ -238,114 +293,244 @@ function renderCharts(){
   salaryDistChart.data.datasets[0].data = counts;
   salaryDistChart.update();
 
-
-  // Salary by Experience Bucket
+  // Salary by experience buckets
   const expGroups = {};
   filtered.forEach(r=>{
     const yrs = toNumber(r.experience_years);
     const sal = toNumber(r.annual_salary_inr);
     if(isNaN(yrs) || isNaN(sal)) return;
-
     let bucket = "Unknown";
     if(yrs <= 1) bucket = "0-1";
     else if(yrs <= 3) bucket = "1-3";
     else if(yrs <= 5) bucket = "3-5";
     else bucket = "5+";
-
     if(!expGroups[bucket]) expGroups[bucket] = [];
     expGroups[bucket].push(sal);
   });
 
   const expLabels = Object.keys(expGroups).sort();
-  const expAvgs = expLabels.map(b =>
-    Math.round(expGroups[b].reduce((a,b)=>a+b,0) / expGroups[b].length)
-  );
-
+  const expAvgs = expLabels.map(b => Math.round(expGroups[b].reduce((a,b)=>a+b,0) / expGroups[b].length));
   salaryByExpChart.data.labels = expLabels;
   salaryByExpChart.data.datasets[0].data = expAvgs;
   salaryByExpChart.update();
 
-
-  // Salary by City
+  // City averages (top 10)
   const cityGroups = {};
   filtered.forEach(r=>{
     const city = r.city || "Unknown";
     const sal = toNumber(r.annual_salary_inr);
     if(isNaN(sal)) return;
-
     if(!cityGroups[city]) cityGroups[city] = [];
     cityGroups[city].push(sal);
   });
-
   const cityData = Object.entries(cityGroups)
-    .map(([city,arr])=>({
-      city,
-      avg: arr.reduce((a,b)=>a+b,0)/arr.length
-    }))
+    .map(([city,arr])=>({ city, avg: arr.reduce((a,b)=>a+b,0)/arr.length }))
     .sort((a,b)=>b.avg - a.avg)
     .slice(0,10);
-
   cityBarChart.data.labels = cityData.map(x=>x.city);
   cityBarChart.data.datasets[0].data = cityData.map(x=>Math.round(x.avg));
   cityBarChart.update();
 }
 
-
-// --- EVENT LISTENERS ---
+// ----------------- File parsing / mapping -----------------
+function safeVal(r, keys){
+  for(const k of keys) if(r[k] !== undefined && r[k] !== null) return r[k];
+  return '';
+}
 
 fileInput.addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
-
   Papa.parse(file, {
     header:true,
     skipEmptyLines:true,
     complete: function(results){
-      rawData = results.data.map(r=>({
-        role: (r.role || r.Role || "").trim(),
-        country: (r.country || r.Country || "").trim(),
-        city: (r.city || r.City || "").trim(),
-        experience_years: (r.experience_years || r.experience || "").trim(),
-        annual_salary_inr: (r.annual_salary_inr || r.salary || "").trim()
-      }));
+      rawData = results.data.map(r=>{
+        return {
+          role: (safeVal(r, ['role','Role','job','Job']) || '').toString().trim(),
+          country: (safeVal(r, ['country','Country']) || '').toString().trim(),
+          city: (safeVal(r, ['city','City']) || '').toString().trim(),
+          experience_years: (safeVal(r, ['experience_years','experience','Experience']) || '').toString().trim(),
+          annual_salary_inr: (safeVal(r, ['annual_salary_inr','annual_salary','salary','Salary'])||'').toString().replace(/,/g,'').trim(),
+          skills: (safeVal(r, ['skills','Skills','skill_list','Skill_list'])||'').toString().trim(),
+          skill_level: (safeVal(r, ['skill_level','Skill_level']) || '').toString().toLowerCase().trim()
+        };
+      });
       updateFiltersUI();
       applyFilters();
     }
   });
 });
 
-[roleFilter, countryFilter, expFilter].forEach(el =>
-  el.addEventListener('change', applyFilters)
-);
+// ----------------- Download filtered CSV -----------------
+downloadBtn.addEventListener('click', ()=> downloadCSV(filtered));
 
-downloadBtn.addEventListener('click', () => downloadCSV(filtered));
-
-
-// --- INITIAL LOAD (sample CSV) ---
-fetch("data/sample_salaries.csv")
-  .then(res => res.text())
-  .then(txt => {
-    Papa.parse(txt, {
-      header:true,
-      skipEmptyLines:true,
-      complete(res){
-        rawData = res.data.map(r=>({
-          role: (r.role || '').trim(),
-          country: (r.country || '').trim(),
-          city: (r.city || '').trim(),
-          experience_years: (r.experience_years || '').trim(),
-          annual_salary_inr: (r.annual_salary_inr || '').trim()
-        }));
-        updateFiltersUI();
-        applyFilters();
-      }
-    });
+// ----------------- Initial load of sample CSV -----------------
+fetch('data/sample_salaries.csv')
+  .then(res=>res.text())
+  .then(txt=>{
+    Papa.parse(txt, { header:true, skipEmptyLines:true, complete(res){
+      rawData = res.data.map(r=>{
+        return {
+          role: (safeVal(r, ['role','Role','job','Job']) || '').toString().trim(),
+          country: (safeVal(r, ['country','Country']) || '').toString().trim(),
+          city: (safeVal(r, ['city','City']) || '').toString().trim(),
+          experience_years: (safeVal(r, ['experience_years','experience','Experience']) || '').toString().trim(),
+          annual_salary_inr: (safeVal(r, ['annual_salary_inr','annual_salary','salary','Salary'])||'').toString().replace(/,/g,'').trim(),
+          skills: (safeVal(r, ['skills','Skills','skill_list','Skill_list'])||'').toString().trim(),
+          skill_level: (safeVal(r, ['skill_level','Skill_level']) || '').toString().toLowerCase().trim()
+        };
+      });
+      updateFiltersUI();
+      applyFilters();
+    }});
+  }).catch(e=>{
+    // if sample CSV missing, keep rawData empty but do not crash
+    console.warn('Sample CSV load failed', e);
+    rawData = [];
+    updateFiltersUI();
+    applyFilters();
   });
 
+// ----------------- Insights: Market Demand & Skill Gap -----------------
+// helper: parse skills (handles semicolon/comma/pipe/slash)
+function parseSkills(text){
+  if(!text) return [];
+  return text.toString().split(/[;,|\/]+/).map(s=>s.trim().toLowerCase()).filter(Boolean);
+}
 
-// Build Chart Canvases
+// Get rows filtered for insights (role, country, skill level)
+function getFilteredRowsForInsights(){
+  const role = roleFilter.value;
+  const country = countryFilter.value;
+  const selectedLevel = document.getElementById('skillLevelFilter').value;
+
+  return rawData.filter(r=>{
+    if(role && r.role !== role) return false;
+    if(country && r.country !== country) return false;
+    if(selectedLevel){
+      const level = (r.skill_level || '').toString().toLowerCase();
+      if(level){
+        if(level !== selectedLevel) return false;
+      } else {
+        const yrs = Number((r.experience_years||'').toString().replace(/[^0-9.]/g,''));
+        if(selectedLevel === 'novice' && !(yrs <= 1)) return false;
+        if(selectedLevel === 'mid' && !(yrs > 1 && yrs <= 3)) return false;
+        if(selectedLevel === 'senior' && !(yrs > 3)) return false;
+      }
+    }
+    return true;
+  });
+}
+
+// Build role-country max map to normalize demand
+function buildRoleCountryMaxCount(){
+  const counts = {};
+  rawData.forEach(r=>{
+    const key = `${r.role||''}||${r.country||''}||${(r.skill_level||'').toLowerCase()}`;
+    counts[key] = (counts[key]||0) + 1;
+  });
+  let max = 1;
+  Object.values(counts).forEach(v=> max = Math.max(max, v));
+  return {counts, max};
+}
+
+// compute insights
+function computeInsights(){
+  const rows = getFilteredRowsForInsights();
+
+  // salaries (numbers)
+  const salaries = rows.map(r => {
+    const v = Number((r.annual_salary_inr||'').toString().replace(/,/g,''));
+    return isNaN(v) ? null : v;
+  }).filter(Boolean);
+
+  const minV = salaries.length ? Math.min(...salaries) : null;
+  const medV = salaries.length ? Math.round(medianCalc(salaries)) : null;
+  const maxV = salaries.length ? Math.max(...salaries) : null;
+  const avgV = salaries.length ? Math.round(salaries.reduce((a,b)=>a+b,0)/salaries.length) : null;
+
+  // demand (count)
+  const demandCount = rows.length;
+  const rc = buildRoleCountryMaxCount();
+  const demandScore = Math.round((demandCount / rc.max) * 100);
+
+  // skills aggregation: frequency of skills in filtered rows
+  const skillCounts = {};
+  rows.forEach(r=>{
+    const skills = parseSkills(r.skills || r.Skills || r.skill_list || '');
+    const uniq = Array.from(new Set(skills));
+    uniq.forEach(s => skillCounts[s] = (skillCounts[s]||0) + 1);
+  });
+  const topSkills = Object.entries(skillCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  return { rows, salaries, minV, medV, maxV, avgV, demandCount, demandScore, topSkills };
+}
+
+// compute skill gap between user and top required skills
+function computeSkillGap(insights, userSkillsText){
+  const userSkills = (userSkillsText||'').toLowerCase().split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
+  const required = insights.topSkills.map(x=>x[0]);
+  const matched = required.filter(s => userSkills.includes(s));
+  const missing = required.filter(s => !userSkills.includes(s));
+  const gapPercent = Math.round(((required.length - matched.length) / Math.max(required.length,1)) * 100);
+  return { userSkills, required, matched, missing, gapPercent };
+}
+
+// render insights in small cards
+function renderInsights(){
+  const ins = computeInsights();
+  const userSkillsVal = document.getElementById('userSkills').value || '';
+
+  // ensure container exists
+  const container = document.getElementById('insightsContainer');
+  if(!container) return;
+  container.innerHTML = ''; // clear
+
+  // Salary card
+  const sal = document.createElement('div'); sal.className='insight-card';
+  sal.innerHTML = `<h3>Salary Range</h3>
+    <p>Min: ${ins.minV ? '₹'+ins.minV.toLocaleString() : '—'} &nbsp; Median: ${ins.medV ? '₹'+ins.medV.toLocaleString() : '—'} &nbsp; Max: ${ins.maxV ? '₹'+ins.maxV.toLocaleString() : '—'}</p>
+    <p>Avg: ${ins.avgV ? '₹'+ins.avgV.toLocaleString() : '—'}</p>`;
+  container.appendChild(sal);
+
+  // Demand card
+  const demand = document.createElement('div'); demand.className='insight-card';
+  demand.innerHTML = `<h3>Market Demand</h3>
+    <p>Postings: <strong>${ins.demandCount}</strong></p>
+    <p>Demand score: <strong>${ins.demandScore}/100</strong></p>
+    <div class="bar-bg" aria-hidden="true"><div class="bar-fill" style="width:${ins.demandScore}%;"></div></div>`;
+  container.appendChild(demand);
+
+  // Skill gap card
+  const gap = computeSkillGap(ins, userSkillsVal);
+  const gapCard = document.createElement('div'); gapCard.className='insight-card';
+  gapCard.innerHTML = `<h3>Skill Gap</h3>
+    <p>Top skills: ${ins.topSkills.map(x=>x[0]).join(', ') || '—'}</p>
+    <p>Your skills: ${gap.userSkills.join(', ') || '—'}</p>
+    <p>Missing: ${gap.missing.length ? gap.missing.join(', ') : 'None'}</p>
+    <p>Gap: <strong>${gap.gapPercent}%</strong></p>`;
+  container.appendChild(gapCard);
+
+  // update summary stats display if elements exist
+  if(avgEl) avgEl.textContent = ins.avgV ? `Avg: ₹${ins.avgV.toLocaleString()}` : 'Avg: -';
+  if(medianEl) medianEl.textContent = ins.medV ? `Median: ₹${ins.medV.toLocaleString()}` : 'Median: -';
+  if(minEl) minEl.textContent = ins.minV ? `Min: ₹${ins.minV.toLocaleString()}` : 'Min: -';
+  if(maxEl) maxEl.textContent = ins.maxV ? `Max: ₹${ins.maxV.toLocaleString()}` : 'Max: -';
+}
+
+// Hook events for analyze + filters
+if(analyzeBtn) analyzeBtn.addEventListener('click', e=>{ e.preventDefault(); renderInsights(); });
+[roleFilter, countryFilter, expFilter].forEach(el => { if(el) el.addEventListener('change', applyFilters); });
+const skillLevelEl = document.getElementById('skillLevelFilter');
+if(skillLevelEl) skillLevelEl.addEventListener('change', ()=>{ applyFilters(); });
+
+// ----------------- Initialization -----------------
 buildCharts();
+
+// run initial renderInsights when data loaded: renderInsights is called inside applyFilters() already
 
 </script>
 </body>
 </html>
+
