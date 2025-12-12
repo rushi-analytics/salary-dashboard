@@ -27,6 +27,7 @@ body {
 header h1 {
   font-size: 28px;
   margin: 0;
+  color: var(--text);
 }
 
 header p {
@@ -53,6 +54,11 @@ header p {
   border: 1px solid #dce6ef;
   background: var(--card);
   font-size: 13px;
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
 }
 
 /* Stats */
@@ -65,6 +71,7 @@ header p {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
+  color: var(--text);
 }
 
 .insight-card {
@@ -73,11 +80,13 @@ header p {
   padding: 12px;
   box-shadow: 0 6px 18px rgba(2,6,23,0.04);
   min-width: 230px;
+  color: var(--text);
 }
 
 .insight-card h3 {
   margin: 0 0 8px 0;
   font-size: 15px;
+  color: var(--text);
 }
 
 .small-muted {
@@ -100,12 +109,14 @@ header p {
   border-radius: 8px 0 0 8px;
 }
 
+/* Fit score */
 .fit-score {
   font-size: 28px;
   font-weight: 700;
   color: var(--accent);
 }
 
+/* Chips */
 .chip {
   display: inline-block;
   padding: 5px 8px;
@@ -128,6 +139,7 @@ header p {
   padding: 12px;
   border-radius: 10px;
   box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+  color: var(--text);
 }
 
 canvas {
