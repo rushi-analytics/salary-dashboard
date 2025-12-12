@@ -1,10 +1,10 @@
-role	country	city	experience_years	annual_salary_inr
-Data Analyst	India	Pune	2	450000
-Data Analyst	India	Mumbai	3	520000
-Data Scientist	India	Bangalore	1	650000
-Software Engineer	India	Pune	4	900000
-Data Analyst	USA	New York	2	8500000
-Software Engineer	USA	Seattle	5	12000000
-Data Scientist	UK	London	3	7000000
-Business Analyst	India	Hyderabad	2	500000
-Software Engineer	Canada	Toronto	3	7500000
+role,country,city,experience_years,annual_salary_inr,top_skills,demand_score,postings
+Data Analyst,India,Pune,2,450000,Excel;SQL;Power BI;Python,72,180
+Data Analyst,India,Mumbai,3,520000,SQL;Python;Tableau,65,150
+Data Scientist,India,Bangalore,1,650000,Python;Machine Learning;SQL,88,220
+Software Engineer,India,Pune,4,900000,Java;Spring;Cloud;Microservices,91,250
+Data Analyst,USA,New York,2,8500000,Excel;SQL;Power BI,70,120
+Software Engineer,USA,Seattle,5,12000000,Cloud;AWS;DevOps;Python,95,300
+Data Scientist,UK,London,3,7000000,Python;Deep Learning;ML Ops,92,240
+Business Analyst,India,Hyderabad,2,500000,Excel;SQL;Domain Knowledge,60,110
+Software Engineer,Canada,Toronto,3,7500000,Java;Cloud;DevOps;Docker,89,200
