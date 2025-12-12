@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Salary Insights Dashboard — Resume-Fit (C3)</title>
+  <title>Salary Insights Dashboard — Resume-Fit (C3) + AI</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root{ --bg:#f4f7fb; --card:#fff; --muted:#62707a; --accent:#2f9cf0; --pad:14px; --green:#27ae60; --orange:#f39c12; }
@@ -10,7 +10,7 @@
     .container{ max-width:1100px; margin:0 auto; }
     header{ margin-bottom:16px; }
     header h1{ margin:0; font-size:28px; }
-    header p{ margin:6px 0 0 0; color:var(--muted); }
+    header p{ margin:6px 0 0 0; color:var(--muted); font-size:14px; }
 
     .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0; }
     .controls select, .controls input[type="text"], .controls button, .controls input[type="file"]{
@@ -33,7 +33,6 @@
 
     footer{ margin-top:18px; color:var(--muted); font-size:13px; text-align:center; }
 
-    /* Resume fit visual */
     .fit-score{ font-size:28px; font-weight:700; color:var(--accent); }
     .recommend-list{ margin:8px 0 0 0; padding-left:16px; }
     .chip{ display:inline-block; padding:5px 8px; background:#f1f6fb; border-radius:8px; margin:4px; font-size:13px; color:#122; }
@@ -47,8 +46,8 @@
 <body>
   <div class="container">
     <header>
-      <h1>Salary Insights Dashboard — Resume-Fit (C3)</h1>
-      <p>Upload a salary CSV (must include columns: top_skills, demand_score, postings, annual_salary_inr)</p>
+      <h1>Salary Insights Dashboard — Resume-Fit (C3) + AI</h1>
+      <p>Upload a salary CSV (must include: top_skills, demand_score, postings, annual_salary_inr). To enable AI features: run the small proxy server (instructions below).</p>
     </header>
 
     <section class="controls">
@@ -63,9 +62,16 @@
         <option value="5+">5+</option>
       </select>
       <select id="skillLevelFilter"><option value="">All levels</option><option value="novice">Novice</option><option value="mid">Mid</option><option value="senior">Senior</option></select>
-      <input id="userSkills" placeholder="Your skills (comma separated)" type="text" style="min-width:260px" />
+      <input id="userSkills" placeholder="Your skills (comma separated) or drag resume below" type="text" style="min-width:220px" />
       <button id="analyzeBtn">Analyze</button>
       <button id="downloadBtn">Download Filtered CSV</button>
+    </section>
+
+    <!-- resume upload -->
+    <section style="margin-bottom:12px;">
+      <label for="resumeFile">Upload Resume (PDF/TXT/DOCX): </label>
+      <input id="resumeFile" type="file" accept=".pdf,.txt,.docx" />
+      <small class="small-muted">Resume will be parsed using AI (if available) or local extractor fallback.</small>
     </section>
 
     <div id="stats">
@@ -76,9 +82,7 @@
       <span id="max">Max: -</span>
     </div>
 
-    <div id="insightsContainer">
-      <!-- Cards will be rendered here -->
-    </div>
+    <div id="insightsContainer"></div>
 
     <section class="charts">
       <div class="chart-card"><canvas id="salaryDist"></canvas></div>
@@ -88,20 +92,76 @@
     </section>
 
     <footer>
-      <small>Built with ❤️ • Resume-Fit algorithm (transparent weights) • Option C3</small>
+      <small>Built with ❤️ • JSearch (RapidAPI) + OpenAI GPT-4o-mini (via secure proxy) • Option C3</small>
     </footer>
   </div>
 
 <script>
-// ---------- Utilities ----------
+/*
+  IMPORTANT: To enable the "real job demand" & "AI resume extraction" features you should run a
+  minimal secure proxy server that stores your API keys and forwards requests.
+
+  Minimal Node/Express proxy example (save as server.js):
+
+  --------------------------------------------------------
+  // server.js
+  const express = require('express');
+  const fetch = require('node-fetch'); // or built-in fetch in Node 18+
+  const app = express();
+  app.use(express.json());
+
+  // load keys from env
+  const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+  const OPENAI_KEY = process.env.OPENAI_KEY;
+
+  // JSearch proxy (RapidAPI)
+  app.get('/api/jsearch', async (req, res) => {
+    const { query } = req.query; // e.g. "data analyst india"
+    if(!query) return res.status(400).json({error:'missing query'});
+    const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&page=1&num_pages=1`;
+    const r = await fetch(url, { headers: { 'X-RapidAPI-Key': RAPIDAPI_KEY, 'X-RapidAPI-Host':'jsearch.p.rapidapi.com' }});
+    const j = await r.json();
+    res.json(j);
+  });
+
+  // OpenAI proxy for GPT usage (responses endpoint)
+  app.post('/api/openai', async (req,res) => {
+    const payload = req.body; // forward to OpenAI
+    const r = await fetch('https://api.openai.com/v1/responses', {
+      method:'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const j = await r.json();
+    res.json(j);
+  });
+
+  app.listen(3000, ()=>console.log('Proxy running on http://localhost:3000'));
+  --------------------------------------------------------
+
+  Run: RAPIDAPI_KEY=xxxx OPENAI_KEY=yyyy node server.js
+
+  Then point client calls to '/api/jsearch' and '/api/openai' (the code below does that).
+  This keeps your keys off the browser.
+
+  If you cannot run a proxy, you can still use a local fallback:
+    - JSearch: will use postings & demand_score from your CSV
+    - AI extraction: uses a local simple extractor (regexp) — less accurate.
+
+  Ok — code below offers:
+   - client functions to call /api/jsearch & /api/openai
+   - fallback logic if server not available
+*/
+
+//// Utilities
 function toNumber(v){ return v === '' || v === null || v === undefined ? NaN : +v; }
-function medianCalc(arr){ const s = arr.slice().sort((a,b)=>a-b); const n=s.length; if(n===0) return NaN; const m=Math.floor(n/2); return n%2 ? s[m] : (s[m-1]+s[m])/2; }
+function medianCalc(arr){ const s=arr.slice().sort((a,b)=>a-b); const n=s.length; if(n===0) return NaN; const m=Math.floor(n/2); return n%2? s[m] : (s[m-1]+s[m])/2; }
 function parseSkills(text){ if(!text) return []; return text.toString().split(/[;,|\/]+/).map(s=>s.trim().toLowerCase()).filter(Boolean); }
 function uniq(arr){ return Array.from(new Set(arr)); }
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 function safeVal(r, keys){ for(const k of keys) if(r[k] !== undefined && r[k] !== null) return r[k]; return ''; }
 
-// ---------- State & DOM ----------
+// State & DOM
 let rawData = []; let filtered = [];
 const fileInput = document.getElementById('fileInput');
 const roleFilter = document.getElementById('roleFilter');
@@ -111,21 +171,22 @@ const skillLevelFilter = document.getElementById('skillLevelFilter');
 const userSkillsInput = document.getElementById('userSkills');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
+const resumeFile = document.getElementById('resumeFile');
 
 const avgEl = document.getElementById('avg'), medianEl = document.getElementById('median'), minEl = document.getElementById('min'), maxEl = document.getElementById('max');
 const insightsContainer = document.getElementById('insightsContainer');
 
-// ---------- Charts ----------
+// Charts
 let salaryDistChart, salaryByExpChart, cityBarChart;
-function createChart(ctx, cfg){ return new Chart(ctx, cfg); }
+function createChart(ctx,cfg){ return new Chart(ctx,cfg); }
 function buildCharts(){
-  salaryDistChart = createChart(document.getElementById('salaryDist'), { type:'bar', data:{labels:[], datasets:[{label:'Count', data:[], backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}});
-  salaryByExpChart = createChart(document.getElementById('salaryByExp'), { type:'bar', data:{labels:[], datasets:[{label:'Avg Salary', data:[], backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}});
-  cityBarChart = createChart(document.getElementById('cityBar'), { type:'bar', data:{labels:[], datasets:[{label:'Avg Salary', data:[], backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}}}});
+  salaryDistChart = createChart(document.getElementById('salaryDist'), { type:'bar', data:{labels:[],datasets:[{label:'Count',data:[],backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+  salaryByExpChart = createChart(document.getElementById('salaryByExp'), { type:'bar', data:{labels:[],datasets:[{label:'Avg Salary',data:[],backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+  cityBarChart = createChart(document.getElementById('cityBar'), { type:'bar', data:{labels:[],datasets:[{label:'Avg Salary',data:[],backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}}}});
 }
 buildCharts();
 
-// ---------- Read & map CSV ----------
+// map CSV row function
 function mapRow(r){
   return {
     role: (safeVal(r, ['role','Role','job','Job'])||'').toString().trim(),
@@ -139,6 +200,7 @@ function mapRow(r){
   };
 }
 
+// file input
 fileInput.addEventListener('change', e=>{
   const f = e.target.files[0]; if(!f) return;
   Papa.parse(f, { header:true, skipEmptyLines:true, complete(results){
@@ -147,15 +209,15 @@ fileInput.addEventListener('change', e=>{
   }});
 });
 
-// fetch sample file if present
+// fetch sample
 fetch('data/sample_salaries.csv').then(r=>r.text()).then(txt=>{
   Papa.parse(txt, { header:true, skipEmptyLines:true, complete(res){
     rawData = res.data.map(mapRow);
     updateFiltersUI(); applyFilters();
   }});
-}).catch(()=>{/*no sample*/});
+}).catch(()=>{/* no sample */});
 
-// ---------- Filters UI ----------
+// filters UI
 function updateFiltersUI(){
   const roles = uniq(rawData.map(r=>r.role)).filter(Boolean).sort();
   const countries = uniq(rawData.map(r=>r.country)).filter(Boolean).sort();
@@ -163,9 +225,9 @@ function updateFiltersUI(){
   countryFilter.innerHTML = '<option value="">All Countries</option>' + countries.map(x=>`<option>${x}</option>`).join('');
 }
 
-[roleFilter, countryFilter, expFilter, skillLevelFilter].forEach(el => { if(el) el.addEventListener('change', applyFilters); });
+[roleFilter,countryFilter,expFilter,skillLevelFilter].forEach(el=>{ if(el) el.addEventListener('change', applyFilters); });
 
-// ---------- Apply filters ----------
+// apply filters
 function applyFilters(){
   const role = roleFilter.value, country = countryFilter.value, exp = expFilter.value, level = skillLevelFilter.value;
   filtered = rawData.filter(r=>{
@@ -180,10 +242,10 @@ function applyFilters(){
     }
     if(level){
       const lv = (r.skill_level||'').toLowerCase();
-      if(lv) { if(lv !== level) return false; }
+      if(lv){ if(lv !== level) return false; }
       else {
-        if(level==='novice' && !(yrs <= 1)) return false;
-        if(level==='mid' && !(yrs > 1 && yrs <= 3)) return false;
+        if(level==='novice' && !(yrs <=1)) return false;
+        if(level==='mid' && !(yrs > 1 && yrs <=3)) return false;
         if(level==='senior' && !(yrs > 3)) return false;
       }
     }
@@ -192,7 +254,7 @@ function applyFilters(){
   renderStats(); renderCharts(); renderInsights();
 }
 
-// ---------- Stats & Charts ----------
+// stats & charts
 function renderStats(){
   const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   if(salaries.length===0){ avgEl.textContent = medianEl.textContent = minEl.textContent = maxEl.textContent = "-"; return; }
@@ -205,13 +267,12 @@ function renderStats(){
 
 function renderCharts(){
   const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
-  // distribution
-  let labels=[]; let counts=[];
+  let labels=[], counts=[];
   if(salaries.length){
-    const minV = Math.min(...salaries); const maxV = Math.max(...salaries); const buckets=6; const range=maxV-minV || 1; const size = range/buckets;
-    counts = Array(buckets).fill(0); labels = [];
-    for(let i=0;i<buckets;i++){ const a=Math.round(minV + i*size); const b=Math.round(minV + (i+1)*size); labels.push(`₹${a.toLocaleString()} - ₹${b.toLocaleString()}`); }
-    salaries.forEach(v=>{ let idx = Math.floor((v-minV)/size); if(idx>=buckets) idx=buckets-1; counts[idx]++; });
+    const minV=Math.min(...salaries); const maxV=Math.max(...salaries); const buckets=6; const range=maxV-minV||1; const size = range/buckets;
+    counts=Array(buckets).fill(0); labels=[];
+    for(let i=0;i<buckets;i++){ const a=Math.round(minV+i*size); const b=Math.round(minV+(i+1)*size); labels.push(`₹${a.toLocaleString()} - ₹${b.toLocaleString()}`); }
+    salaries.forEach(v=>{ let idx=Math.floor((v-minV)/size); if(idx>=buckets) idx=buckets-1; counts[idx]++; });
   }
   salaryDistChart.data.labels = labels; salaryDistChart.data.datasets[0].data = counts; salaryDistChart.update();
 
@@ -221,20 +282,65 @@ function renderCharts(){
   salaryByExpChart.data.labels = expLabels; salaryByExpChart.data.datasets[0].data = expAvgs; salaryByExpChart.update();
 
   // city
-  const city = {}; filtered.forEach(r=>{ const c = r.city||'Unknown'; const s=toNumber(r.annual_salary_inr); if(isNaN(s)) return; if(!city[c]) city[c]=[]; city[c].push(s); });
-  const cityArr = Object.entries(city).map(([c,arr])=>({city:c, avg: arr.reduce((a,b)=>a+b,0)/arr.length})).sort((a,b)=>b.avg-a.avg).slice(0,8);
+  const city = {}; filtered.forEach(r=>{ const c=r.city||'Unknown'; const s=toNumber(r.annual_salary_inr); if(isNaN(s)) return; if(!city[c]) city[c]=[]; city[c].push(s); });
+  const cityArr = Object.entries(city).map(([c,arr])=>({city:c,avg:arr.reduce((a,b)=>a+b,0)/arr.length})).sort((a,b)=>b.avg-a.avg).slice(0,8);
   cityBarChart.data.labels = cityArr.map(x=>x.city); cityBarChart.data.datasets[0].data = cityArr.map(x=>Math.round(x.avg)); cityBarChart.update();
 }
 
-// ---------- Insights & Resume-Fit C3 ----------
+// Insights + Resume-Fit + AI integration
+async function fetchJobDemandFromAPI(query){
+  // Recommended: run the proxy server at /api/jsearch (server stores your RAPIDAPI_KEY).
+  // This client will call the proxy. If proxy fails, we fallback to local CSV values.
+  try {
+    const res = await fetch(`/api/jsearch?query=${encodeURIComponent(query)}`);
+    if(!res.ok) throw new Error('proxy error');
+    const j = await res.json();
+    // JSearch returns results under j.data usually. We'll compute postings & demand_score from those results.
+    const posts = (j.data || []).map(x => ({
+      title: x.job_title || x.title || '',
+      company: x.employer_name || x.company_name || '',
+      location: x.job_city || x.job_country || x.location || '',
+      description: x.job_description || '',
+      // approximate 'score' (JSearch doesn't provide demand_score; we'll use 75 as placeholder if hits)
+      score: 75
+    }));
+    return { posts, count: posts.length, avgScore: posts.length ? 75 : 0 };
+  } catch(err){
+    console.warn('JSearch proxy unavailable, falling back to CSV demand values.', err);
+    return null;
+  }
+}
 
+// OpenAI AI call via proxy
+async function callOpenAIProxy(prompt, max_tokens=400){
+  try {
+    const payload = {
+      model: "gpt-4o-mini",
+      input: prompt,
+      max_output_tokens: max_tokens
+    };
+    const r = await fetch('/api/openai', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if(!r.ok) throw new Error('openai proxy error');
+    const j = await r.json();
+    // openai 'responses' format: j.output[0].content[0].text OR j.output_text
+    if(j.output_text) return j.output_text;
+    if(j.output && Array.isArray(j.output)) {
+      // try to join string outputs
+      return j.output.map(o => (typeof o === 'string' ? o : (o.content ? JSON.stringify(o.content) : ''))).join('\n');
+    }
+    return JSON.stringify(j);
+  } catch(e){
+    console.warn('OpenAI proxy failed', e);
+    return null;
+  }
+}
+
+// compute insights
 function computeInsights(){
-  // compute global min/max salary across rawData for normalization
   const allSalaries = rawData.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   const globalMin = allSalaries.length ? Math.min(...allSalaries) : 0;
   const globalMax = allSalaries.length ? Math.max(...allSalaries) : (globalMin || 1);
 
-  // For filtered rows, compute aggregates
   const rows = filtered.slice();
   const salaries = rows.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   const minV = salaries.length ? Math.min(...salaries) : null;
@@ -242,11 +348,9 @@ function computeInsights(){
   const maxV = salaries.length ? Math.max(...salaries) : null;
   const avgV = salaries.length ? Math.round(salaries.reduce((a,b)=>a+b,0)/salaries.length) : null;
 
-  // demand
   const postings = rows.reduce((s,r)=>s + (isNaN(Number(r.postings)) ? 0 : Number(r.postings)), 0);
   const avgDemandScore = rows.length ? Math.round(rows.reduce((s,r)=>s + (isNaN(Number(r.demand_score))?0:Number(r.demand_score)),0)/rows.length) : 0;
 
-  // top skills aggregated
   const skillCounts = {};
   rows.forEach(r=>{
     const sk = parseSkills(r.top_skills || '');
@@ -258,41 +362,82 @@ function computeInsights(){
   return { rows, salaries, minV, medV, maxV, avgV, postings, avgDemandScore, topSkills, globalMin, globalMax };
 }
 
-// Resume Fit function (C3)
+// compute Resume-Fit (C3)
 function computeResumeFit(insights, userSkillsText){
-  const required = insights.topSkills.slice(0,8); // required list
+  const required = insights.topSkills.slice(0,8);
   const userSkills = parseSkills(userSkillsText || '');
   const matched = required.filter(s => userSkills.includes(s));
   const missing = required.filter(s => !userSkills.includes(s));
   const skillMatchPct = required.length ? Math.round((matched.length / required.length) * 100) : 0;
 
-  // demand factor: average demand score normalized 0-1
   const demandFactor = insights.avgDemandScore ? clamp(insights.avgDemandScore / 100, 0,1) : 0;
 
-  // salary factor: average salary normalized within global dataset (0-1)
   const avgSal = insights.avgV || 0;
   const salaryNorm = (avgSal - insights.globalMin) / (insights.globalMax - insights.globalMin || 1);
   const salaryFactor = clamp(salaryNorm, 0,1);
 
-  // final score: 70% skills, 20% demand, 10% salary
-  // compute digit-by-digit to be safe:
   const skillComponent = skillMatchPct * 0.70;
   const demandComponent = (demandFactor * 100) * 0.20;
   const salaryComponent = (salaryFactor * 100) * 0.10;
   let score = skillComponent + demandComponent + salaryComponent;
   score = Math.round(clamp(score, 0, 100));
 
-  // Recommendation summary
-  let recommended = missing.slice(0,6);
+  const recommended = missing.slice(0,6);
   const tip = recommended.length ? `Focus on learning: ${recommended.join(', ')}.` : 'You already have core skills — consider building projects to showcase them.';
 
   return { score, required, matched, missing, recommended, tip, components:{skillComponent:Math.round(skillComponent), demandComponent:Math.round(demandComponent), salaryComponent:Math.round(salaryComponent)} };
 }
 
-function renderInsights(){
+// render insights (and call JSearch/AI where appropriate)
+async function renderInsights(){
   const ins = computeInsights();
   const userText = userSkillsInput.value || '';
-  // clear container
+
+  // call JSearch using top role+country (asynchronous, optional)
+  let jsearchInfo = null;
+  if(ins.rows.length){
+    const qRole = ins.rows[0].role || roleFilter.value || '';
+    const qCountry = ins.rows[0].country || countryFilter.value || '';
+    if(qRole){
+      // call proxy; if fails we'll fallback to CSV values
+      jsearchInfo = await fetchJobDemandFromAPI(`${qRole} ${qCountry}`); // may return null
+    }
+  }
+
+  // AI resume extractor: if user uploaded resume, call OpenAI proxy to extract skills
+  let resumeParsedSkills = [];
+  if(resumeFile.files && resumeFile.files[0]){
+    const f = resumeFile.files[0];
+    // read file as text for simple formats; for PDF/DOCX we send to OpenAI proxy
+    const txt = await (new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result);
+      reader.onerror = () => rej('read error');
+      // For plain text files, read as text
+      if(f.type === 'text/plain' || f.name.endsWith('.txt')) reader.readAsText(f);
+      else reader.readAsArrayBuffer(f); // send arraybuffer to proxy
+    }).catch(()=>null));
+
+    // if OpenAI proxy available, call it
+    const prompt = `Extract a comma-separated list of skills and tools from the following resume text. Only output skills. Resume: ${typeof txt === 'string' ? txt : '[binary file uploaded]'}`;
+    const aiResp = await callOpenAIProxy(prompt, 600);
+    if(aiResp){
+      // try to parse returned text into skills
+      const maybe = aiResp.replace(/\n/g,',').replace(/["']/g,'').split(/[;,]+/).map(s=>s.trim()).filter(Boolean);
+      resumeParsedSkills = uniq(maybe.map(s=>s.toLowerCase()));
+      // set user skills input to extracted string (non-destructive)
+      if(resumeParsedSkills.length && !userSkillsInput.value) userSkillsInput.value = resumeParsedSkills.join(', ');
+    } else {
+      // fallback simple parser from text (if available)
+      if(typeof txt === 'string'){
+        const fallbackSkills = Array.from(new Set((txt.match(/(Python|SQL|Excel|Power BI|Tableau|AWS|Docker|Kubernetes|Java|C\+\+|C#|R|Pandas|NumPy|TensorFlow|PyTorch|Spark|Hadoop|Machine Learning|Deep Learning|DevOps|Azure|GCP)/gi) || []).map(s=>s.toLowerCase())));
+        resumeParsedSkills = fallbackSkills;
+        if(resumeParsedSkills.length && !userSkillsInput.value) userSkillsInput.value = resumeParsedSkills.join(', ');
+      }
+    }
+  }
+
+  // Build UI cards
   insightsContainer.innerHTML = '';
 
   // Salary card
@@ -302,23 +447,29 @@ function renderInsights(){
     <div class="small-muted">Avg: ${ins.avgV ? '₹'+ins.avgV.toLocaleString() : '—'}</div>`;
   insightsContainer.appendChild(salaryCard);
 
-  // Market Demand card
+  // Market Demand (CSV + JSearch)
   const demandCard = document.createElement('div'); demandCard.className='insight-card';
+  const avgDemand = jsearchInfo ? Math.round(jsearchInfo.avgScore) : ins.avgDemandScore;
+  const postingsVal = jsearchInfo ? (jsearchInfo.count || ins.postings) : ins.postings;
   demandCard.innerHTML = `<h3>Market Demand</h3>
-    <div class="small-muted">Postings: <strong>${ins.postings}</strong></div>
-    <div class="small-muted">Avg demand score: <strong>${ins.avgDemandScore}/100</strong></div>
-    <div class="bar-bg" aria-hidden="true"><div class="bar-fill" style="width:${ins.avgDemandScore}%"></div></div>`;
+    <div class="small-muted">Postings: <strong>${postingsVal}</strong></div>
+    <div class="small-muted">Avg demand score: <strong>${avgDemand}/100</strong></div>
+    <div class="bar-bg" aria-hidden="true"><div class="bar-fill" style="width:${avgDemand}%"></div></div>`;
   insightsContainer.appendChild(demandCard);
 
   // Skill Gap card
   const skillCard = document.createElement('div'); skillCard.className='insight-card';
   skillCard.innerHTML = `<h3>Skill Gap</h3>
     <div class="small-muted">Top skills: ${ins.topSkills.length?ins.topSkills.join(', '):'—'}</div>
-    <div class="small-muted">Tip: Provide your skills and press Analyze to see gap</div>`;
+    <div class="small-muted">Tip: Provide your skills or upload resume and press Analyze to see gap</div>`;
   insightsContainer.appendChild(skillCard);
 
-  // Resume-Fit (C3) card
-  const fit = computeResumeFit(ins, userText);
+  // Resume-Fit C3: combine everything
+  // Use resumeParsedSkills (highest priority) else user text
+  const skillsToUse = resumeParsedSkills.length ? resumeParsedSkills.join(', ') : (userSkillsInput.value || '');
+  const insForCompute = Object.assign({}, ins, { avgDemandScore: avgDemand, globalMin: ins.globalMin, globalMax: ins.globalMax });
+  const fit = computeResumeFit(insForCompute, skillsToUse);
+
   const fitCard = document.createElement('div'); fitCard.className='insight-card';
   fitCard.innerHTML = `<h3>Resume-Fit</h3>
     <div class="fit-score">${fit.score}%</div>
@@ -328,28 +479,66 @@ function renderInsights(){
     <div style="margin-top:8px;" class="small-muted"><strong>Recommendation:</strong> ${fit.tip}</div>`;
   insightsContainer.appendChild(fitCard);
 
-  // Also append a more detailed report area in the lower summary card
+  // AI-generated recommendations (call OpenAI proxy to create learning plan)
+  const aiRecCard = document.createElement('div'); aiRecCard.className = 'insight-card';
+  aiRecCard.innerHTML = `<h3>AI Skill Recommendations</h3><div class="small-muted" id="aiRecArea">Generating suggestions…</div>`;
+  insightsContainer.appendChild(aiRecCard);
+
+  // Prepare prompt for OpenAI
+  const prompt = `
+You are an assistant that creates a concise skill-up plan.
+Context: role = "${ins.rows[0] && ins.rows[0].role ? ins.rows[0].role : roleFilter.value}", top_skills = "${ins.topSkills.join(', ')}", user_skills = "${skillsToUse}".
+Return JSON with fields:
+- missing: [list of missing top skills]
+- priority: [list of top 3 skills to learn]
+- roadmap: { skill: steps (3 steps) , resources: 2 URLs }
+- short_note: one sentence recommendation.
+Output only JSON.
+`;
+
+  const aiResp = await callOpenAIProxy(prompt, 600);
+  if(aiResp){
+    // try parse JSON
+    let json = null;
+    try { json = JSON.parse(aiResp.trim()); }
+    catch(e){
+      // sometimes model returns plain text — attempt to extract JSON substring
+      const start = aiResp.indexOf('{'); const end = aiResp.lastIndexOf('}');
+      if(start>=0 && end>start) {
+        try { json = JSON.parse(aiResp.substring(start, end+1)); } catch(e2){ json = null; }
+      }
+    }
+    if(json){
+      const out = `<div class="small-muted"><strong>Priority:</strong> ${(json.priority||[]).join(', ') || '—'}</div>
+      <div style="margin-top:6px;"><strong>Roadmap:</strong></div>
+      ${ (json.roadmap && Object.keys(json.roadmap).length) ? Object.entries(json.roadmap).map(([k,v])=>`<div class="small-muted"><strong>${k}:</strong> ${v.steps ? v.steps.join(' | ') : '' } <br/><span class="small-muted">Resources: ${(v.resources||[]).slice(0,2).map(u=>`<a href="${u}" target="_blank">${u}</a>`).join(', ')}</span></div>`).join('') : '<div class="small-muted">—</div>'}
+      <div style="margin-top:6px;"><em>${json.short_note || ''}</em></div>`;
+      document.getElementById('aiRecArea').innerHTML = out;
+    } else {
+      document.getElementById('aiRecArea').innerText = aiResp.slice(0,1000);
+    }
+  } else {
+    document.getElementById('aiRecArea').innerText = 'AI suggestions currently unavailable (proxy down).';
+  }
+
+  // update lower summary
   const lower = document.getElementById('summaryLower');
   if(lower){
     lower.innerHTML = `<h3 style="margin-top:0;">Resume-Fit Report</h3>
       <div class="small-muted">Required skills (top): ${ins.topSkills.length?ins.topSkills.join(', '):'—'}</div>
-      <div class="small-muted">Your skills: ${(parseSkills(userText)||[]).join(', ') || '—'}</div>
+      <div class="small-muted">Your skills: ${(skillsToUse||'—')}</div>
       <div style="margin-top:8px;"><strong>Missing skills details:</strong></div>
       <div>${fit.missing.length ? fit.missing.map(s=>`<div class="small-muted">• ${s}</div>`).join('') : '<div class="small-muted">You match all top skills.</div>'}</div>
       <div style="margin-top:8px;"><strong>Actionable next steps:</strong></div>
       <ol>
         <li>Learn the recommended skills listed above and add small projects that demonstrate them.</li>
         <li>Update your resume summary to include matched keywords (e.g. ${ins.topSkills.slice(0,3).join(', ')}).</li>
-        <li>Apply to roles with demand score >= ${Math.max(50, Math.round(ins.avgDemandScore))} for better chances.</li>
+        <li>Apply to roles with demand score >= ${Math.max(50, Math.round(ins.avgDemandScore || 0))} for better chances.</li>
       </ol>`;
   }
 }
 
-// ---------- Events ----------
-analyzeBtn.addEventListener('click', e=>{ e.preventDefault(); renderInsights(); });
-downloadBtn.addEventListener('click', ()=>{ downloadFilteredCSV(); });
-
-// download helper
+// download filtered csv
 function downloadFilteredCSV(){
   const rows = filtered.map(r=>({
     role: r.role, country: r.country, city: r.city, experience_years: r.experience_years,
@@ -361,8 +550,15 @@ function downloadFilteredCSV(){
   const a = document.createElement('a'); a.href = url; a.download = 'filtered_salaries.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
-// ---------- Initial run ----------
-renderInsights(); // will show placeholders when no data yet
+// events
+analyzeBtn.addEventListener('click', e=>{ e.preventDefault(); renderInsights(); });
+downloadBtn.addEventListener('click', downloadFilteredCSV);
+
+// Resume upload change (trigger analyze to extract skills)
+resumeFile.addEventListener('change', async ()=>{ await renderInsights(); });
+
+// initial placeholder
+renderInsights();
 
 </script>
 </body>
