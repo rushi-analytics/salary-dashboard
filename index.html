@@ -2,229 +2,175 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Salary Insights Dashboard — Starter</title>
+  <title>Salary Insights Dashboard — Resume-Fit (C3)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-
-  <!-- Embedded styles (so this single file works) -->
   <style>
-    :root{ --bg:#f6f8fb; --card:#fff; --muted:#6b7a86; --accent:#4aa3f0; --pad:14px; }
-    body{ font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#0f1720; margin:0; padding:20px 0; }
-    .container{ max-width:980px; margin:0 auto; padding:20px; }
-    header{ margin-bottom:18px; }
-    header h1{ margin:0 0 6px 0; font-size:28px; }
-    header p{ margin:0; color:var(--muted); }
+    :root{ --bg:#f4f7fb; --card:#fff; --muted:#62707a; --accent:#2f9cf0; --pad:14px; --green:#27ae60; --orange:#f39c12; }
+    body{ font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#0f1720; margin:0; padding:22px; }
+    .container{ max-width:1100px; margin:0 auto; }
+    header{ margin-bottom:16px; }
+    header h1{ margin:0; font-size:28px; }
+    header p{ margin:6px 0 0 0; color:var(--muted); }
 
-    /* Controls */
-    .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:12px 0; }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0; }
     .controls select, .controls input[type="text"], .controls button, .controls input[type="file"]{
-      padding:8px 10px; border-radius:8px; border:1px solid #e3e7ee; background:#fff;
-      font-size:13px;
+      padding:8px 10px; border-radius:8px; border:1px solid #e6eef6; background:var(--card); font-size:13px;
     }
 
-    /* Summary */
-    .summary{ margin-top:6px; }
-    #stats{ background:var(--card); padding:10px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    #stats strong{ margin-right:8px; }
-    #stats span{ color:var(--muted); }
+    #stats{ background:var(--card); padding:10px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+    #insightsContainer{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
 
-    /* Insights container + cards */
-    #insightsContainer{ display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
-    .insight-card{
-      background: #ffffff;
-      border-radius: 10px;
-      box-shadow: 0 6px 18px rgba(2,6,23,0.06);
-      padding: 12px;
-      min-width: 220px;
-      max-width: 420px;
-    }
-    .insight-card h3{ margin:0 0 8px 0; font-size:16px; }
-    .insight-card p{ margin:6px 0; font-size:14px; color:#213547; }
-    .bar-bg{ background:#eef2f7; border-radius:8px; height:12px; overflow:hidden; }
+    .insight-card{ background:var(--card); border-radius:10px; padding:12px; min-width:230px; box-shadow:0 6px 18px rgba(2,6,23,0.04); }
+    .insight-card h3{ margin:0 0 8px 0; font-size:15px; }
+    .small-muted{ color:var(--muted); font-size:13px; }
+
+    .bar-bg{ background:#eef6fb; border-radius:8px; height:12px; overflow:hidden; margin-top:6px; }
     .bar-fill{ height:12px; background:var(--accent); border-radius:8px 0 0 8px; }
 
-    /* Charts */
-    .charts{ display:grid; grid-template-columns:1fr; gap:14px; margin-top:16px; }
-    .chart-card{ background:var(--card); padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); }
-    canvas{ width:100% !important; height:280px !important; }
+    .charts{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .chart-card{ background:var(--card); padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); min-height:300px; }
+    canvas{ width:100% !important; height:260px !important; }
 
     footer{ margin-top:18px; color:var(--muted); font-size:13px; text-align:center; }
-    @media(min-width:900px){
-      .charts{ grid-template-columns: 1fr 1fr; }
-      .chart-card{ height:320px; }
-      canvas{ height:300px !important; }
-    }
+
+    /* Resume fit visual */
+    .fit-score{ font-size:28px; font-weight:700; color:var(--accent); }
+    .recommend-list{ margin:8px 0 0 0; padding-left:16px; }
+    .chip{ display:inline-block; padding:5px 8px; background:#f1f6fb; border-radius:8px; margin:4px; font-size:13px; color:#122; }
+    @media(max-width:900px){ .charts{ grid-template-columns:1fr; } }
   </style>
 
-  <!-- CSV parser -->
+  <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-
   <div class="container">
     <header>
-      <h1>Salary Insights Dashboard</h1>
-      <p>Upload a salary CSV or use the sample data</p>
+      <h1>Salary Insights Dashboard — Resume-Fit (C3)</h1>
+      <p>Upload a salary CSV (must include columns: top_skills, demand_score, postings, annual_salary_inr)</p>
     </header>
 
-    <!-- Controls -->
     <section class="controls">
       <input id="fileInput" type="file" accept=".csv" />
-
       <select id="roleFilter"><option value="">All Roles</option></select>
       <select id="countryFilter"><option value="">All Countries</option></select>
-
       <select id="expFilter">
         <option value="">All Experience</option>
-        <option value="0-1">0–1 years</option>
-        <option value="1-3">1–3 years</option>
-        <option value="3-5">3–5 years</option>
-        <option value="5+">5+ years</option>
+        <option value="0-1">0–1</option>
+        <option value="1-3">1–3</option>
+        <option value="3-5">3–5</option>
+        <option value="5+">5+</option>
       </select>
-
-      <!-- ---------- NEW: Insights controls ---------- -->
-      <select id="skillLevelFilter" title="Skill level">
-        <option value="">All levels</option>
-        <option value="novice">Novice</option>
-        <option value="mid">Mid</option>
-        <option value="senior">Senior</option>
-      </select>
-
-      <input id="userSkills" type="text" placeholder="Your skills (comma separated)" style="min-width:220px" />
-
+      <select id="skillLevelFilter"><option value="">All levels</option><option value="novice">Novice</option><option value="mid">Mid</option><option value="senior">Senior</option></select>
+      <input id="userSkills" placeholder="Your skills (comma separated)" type="text" style="min-width:260px" />
       <button id="analyzeBtn">Analyze</button>
-      <!-- ---------- end new controls ---------- -->
-
       <button id="downloadBtn">Download Filtered CSV</button>
     </section>
 
-    <!-- Summary -->
-    <section class="summary">
-      <div id="stats">
-        <strong>Stats:</strong>
-        <span id="avg">Avg: -</span>
-        <span id="median">Median: -</span>
-        <span id="min">Min: -</span>
-        <span id="max">Max: -</span>
-      </div>
-    </section>
+    <div id="stats">
+      <strong>Stats:</strong>
+      <span id="avg">Avg: -</span>
+      <span id="median">Median: -</span>
+      <span id="min">Min: -</span>
+      <span id="max">Max: -</span>
+    </div>
 
-    <!-- Insights container (JS inserts cards here) -->
-    <div id="insightsContainer"></div>
+    <div id="insightsContainer">
+      <!-- Cards will be rendered here -->
+    </div>
 
-    <!-- Charts -->
     <section class="charts">
       <div class="chart-card"><canvas id="salaryDist"></canvas></div>
       <div class="chart-card"><canvas id="salaryByExp"></canvas></div>
       <div class="chart-card"><canvas id="cityBar"></canvas></div>
+      <div class="chart-card" id="summaryLower"></div>
     </section>
 
     <footer>
-      <small>Dashboard created by You • Add AI insights later</small>
+      <small>Built with ❤️ • Resume-Fit algorithm (transparent weights) • Option C3</small>
     </footer>
   </div>
 
 <script>
-// ----------------- Utilities & state -----------------
+// ---------- Utilities ----------
 function toNumber(v){ return v === '' || v === null || v === undefined ? NaN : +v; }
+function medianCalc(arr){ const s = arr.slice().sort((a,b)=>a-b); const n=s.length; if(n===0) return NaN; const m=Math.floor(n/2); return n%2 ? s[m] : (s[m-1]+s[m])/2; }
+function parseSkills(text){ if(!text) return []; return text.toString().split(/[;,|\/]+/).map(s=>s.trim().toLowerCase()).filter(Boolean); }
+function uniq(arr){ return Array.from(new Set(arr)); }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function safeVal(r, keys){ for(const k of keys) if(r[k] !== undefined && r[k] !== null) return r[k]; return ''; }
 
-// median function (avoid naming conflict with DOM id 'median')
-function medianCalc(arr){
-  const sorted = arr.slice().sort((a,b)=>a-b);
-  const n = sorted.length;
-  if(n===0) return NaN;
-  const mid = Math.floor(n/2);
-  return n%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid]) / 2;
-}
-
-function downloadCSV(rows, filename='filtered.csv'){
-  const csv = Papa.unparse(rows);
-  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// --- STATE ---
-let rawData = [];
-let filtered = [];
-
-// DOM refs
+// ---------- State & DOM ----------
+let rawData = []; let filtered = [];
 const fileInput = document.getElementById('fileInput');
 const roleFilter = document.getElementById('roleFilter');
 const countryFilter = document.getElementById('countryFilter');
 const expFilter = document.getElementById('expFilter');
-const downloadBtn = document.getElementById('downloadBtn');
+const skillLevelFilter = document.getElementById('skillLevelFilter');
+const userSkillsInput = document.getElementById('userSkills');
 const analyzeBtn = document.getElementById('analyzeBtn');
+const downloadBtn = document.getElementById('downloadBtn');
 
-// stat elements
-const avgEl = document.getElementById('avg');
-const medianEl = document.getElementById('median');
-const minEl = document.getElementById('min');
-const maxEl = document.getElementById('max');
+const avgEl = document.getElementById('avg'), medianEl = document.getElementById('median'), minEl = document.getElementById('min'), maxEl = document.getElementById('max');
+const insightsContainer = document.getElementById('insightsContainer');
 
-// charts
+// ---------- Charts ----------
 let salaryDistChart, salaryByExpChart, cityBarChart;
-
-// ----------------- Charts setup -----------------
 function createChart(ctx, cfg){ return new Chart(ctx, cfg); }
-
 function buildCharts(){
-  // Salary distribution (vertical bar)
-  salaryDistChart = createChart(
-    document.getElementById('salaryDist'),
-    {
-      type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: 'rgba(74,163,240,0.6)' }] },
-      options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-    }
-  );
+  salaryDistChart = createChart(document.getElementById('salaryDist'), { type:'bar', data:{labels:[], datasets:[{label:'Count', data:[], backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}});
+  salaryByExpChart = createChart(document.getElementById('salaryByExp'), { type:'bar', data:{labels:[], datasets:[{label:'Avg Salary', data:[], backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}});
+  cityBarChart = createChart(document.getElementById('cityBar'), { type:'bar', data:{labels:[], datasets:[{label:'Avg Salary', data:[], backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}}}});
+}
+buildCharts();
 
-  // salary by experience
-  salaryByExpChart = createChart(
-    document.getElementById('salaryByExp'),
-    {
-      type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Avg Salary', data: [], backgroundColor: 'rgba(74,163,240,0.6)' }] },
-      options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-    }
-  );
-
-  // city horizontal bar
-  cityBarChart = createChart(
-    document.getElementById('cityBar'),
-    {
-      type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Avg Salary', data: [], backgroundColor: 'rgba(74,163,240,0.6)' }] },
-      options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
-    }
-  );
+// ---------- Read & map CSV ----------
+function mapRow(r){
+  return {
+    role: (safeVal(r, ['role','Role','job','Job'])||'').toString().trim(),
+    country: (safeVal(r, ['country','Country'])||'').toString().trim(),
+    city: (safeVal(r, ['city','City'])||'').toString().trim(),
+    experience_years: (safeVal(r, ['experience_years','experience','Experience'])||'').toString().trim(),
+    annual_salary_inr: (safeVal(r, ['annual_salary_inr','annual_salary','salary','Salary'])||'').toString().replace(/,/g,'').trim(),
+    top_skills: (safeVal(r, ['top_skills','Top_skills','skills','Skills'])||'').toString().trim(),
+    demand_score: (safeVal(r, ['demand_score','Demand_score'])||'').toString().trim(),
+    postings: (safeVal(r, ['postings','Postings'])||'').toString().trim()
+  };
 }
 
-// ----------------- Filters UI -----------------
+fileInput.addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  Papa.parse(f, { header:true, skipEmptyLines:true, complete(results){
+    rawData = results.data.map(mapRow);
+    updateFiltersUI(); applyFilters();
+  }});
+});
+
+// fetch sample file if present
+fetch('data/sample_salaries.csv').then(r=>r.text()).then(txt=>{
+  Papa.parse(txt, { header:true, skipEmptyLines:true, complete(res){
+    rawData = res.data.map(mapRow);
+    updateFiltersUI(); applyFilters();
+  }});
+}).catch(()=>{/*no sample*/});
+
+// ---------- Filters UI ----------
 function updateFiltersUI(){
-  const roles = Array.from(new Set(rawData.map(r=>r.role))).filter(Boolean).sort();
-  const countries = Array.from(new Set(rawData.map(r=>r.country))).filter(Boolean).sort();
-
-  roleFilter.innerHTML = '<option value="">All Roles</option>' + roles.map(r=>`<option>${r}</option>`).join('');
-  countryFilter.innerHTML = '<option value="">All Countries</option>' + countries.map(c=>`<option>${c}</option>`).join('');
+  const roles = uniq(rawData.map(r=>r.role)).filter(Boolean).sort();
+  const countries = uniq(rawData.map(r=>r.country)).filter(Boolean).sort();
+  roleFilter.innerHTML = '<option value="">All Roles</option>' + roles.map(x=>`<option>${x}</option>`).join('');
+  countryFilter.innerHTML = '<option value="">All Countries</option>' + countries.map(x=>`<option>${x}</option>`).join('');
 }
 
-// ----------------- Apply Filters -----------------
-function applyFilters(){
-  const role = roleFilter.value;
-  const country = countryFilter.value;
-  const exp = expFilter.value;
+[roleFilter, countryFilter, expFilter, skillLevelFilter].forEach(el => { if(el) el.addEventListener('change', applyFilters); });
 
+// ---------- Apply filters ----------
+function applyFilters(){
+  const role = roleFilter.value, country = countryFilter.value, exp = expFilter.value, level = skillLevelFilter.value;
   filtered = rawData.filter(r=>{
     if(role && r.role !== role) return false;
     if(country && r.country !== country) return false;
-
     const yrs = toNumber(r.experience_years);
     if(!isNaN(yrs) && exp){
       if(exp==='0-1' && !(yrs>=0 && yrs<=1)) return false;
@@ -232,305 +178,192 @@ function applyFilters(){
       if(exp==='3-5' && !(yrs>3 && yrs<=5)) return false;
       if(exp==='5+' && !(yrs>5)) return false;
     }
-    return true;
-  });
-
-  renderStats();
-  renderCharts();
-  renderInsights(); // update insights as filters change
-}
-
-// ----------------- Summary stats -----------------
-function renderStats(){
-  const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
-  if(salaries.length===0){
-    avgEl.textContent = medianEl.textContent = minEl.textContent = maxEl.textContent = "-";
-    return;
-  }
-  const avgV = Math.round(salaries.reduce((a,b)=>a+b,0)/salaries.length);
-  const medV = Math.round(medianCalc(salaries));
-  const minV = Math.round(Math.min(...salaries));
-  const maxV = Math.round(Math.max(...salaries));
-
-  avgEl.textContent = `Avg: ₹${avgV.toLocaleString()}`;
-  medianEl.textContent = `Median: ₹${medV.toLocaleString()}`;
-  minEl.textContent = `Min: ₹${minV.toLocaleString()}`;
-  maxEl.textContent = `Max: ₹${maxV.toLocaleString()}`;
-}
-
-// ----------------- Charts rendering -----------------
-function renderCharts(){
-  const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
-
-  // Salary Distribution buckets
-  let labels = [];
-  let counts = [];
-
-  if(salaries.length){
-    const minV = Math.min(...salaries);
-    const maxV = Math.max(...salaries);
-    const bucketCount = 8;
-    const range = maxV - minV || 1;
-    const bucketSize = range / bucketCount;
-
-    labels = [];
-    counts = Array(bucketCount).fill(0);
-
-    for(let i=0;i<bucketCount;i++){
-      const start = Math.round(minV + i*bucketSize);
-      const end = Math.round(minV + (i+1)*bucketSize);
-      labels.push(`₹${start.toLocaleString()} - ₹${end.toLocaleString()}`);
-    }
-
-    salaries.forEach(v=>{
-      let index = Math.floor((v - minV) / bucketSize);
-      if(index >= bucketCount) index = bucketCount - 1;
-      counts[index]++;
-    });
-  }
-
-  salaryDistChart.data.labels = labels;
-  salaryDistChart.data.datasets[0].data = counts;
-  salaryDistChart.update();
-
-  // Salary by experience buckets
-  const expGroups = {};
-  filtered.forEach(r=>{
-    const yrs = toNumber(r.experience_years);
-    const sal = toNumber(r.annual_salary_inr);
-    if(isNaN(yrs) || isNaN(sal)) return;
-    let bucket = "Unknown";
-    if(yrs <= 1) bucket = "0-1";
-    else if(yrs <= 3) bucket = "1-3";
-    else if(yrs <= 5) bucket = "3-5";
-    else bucket = "5+";
-    if(!expGroups[bucket]) expGroups[bucket] = [];
-    expGroups[bucket].push(sal);
-  });
-
-  const expLabels = Object.keys(expGroups).sort();
-  const expAvgs = expLabels.map(b => Math.round(expGroups[b].reduce((a,b)=>a+b,0) / expGroups[b].length));
-  salaryByExpChart.data.labels = expLabels;
-  salaryByExpChart.data.datasets[0].data = expAvgs;
-  salaryByExpChart.update();
-
-  // City averages (top 10)
-  const cityGroups = {};
-  filtered.forEach(r=>{
-    const city = r.city || "Unknown";
-    const sal = toNumber(r.annual_salary_inr);
-    if(isNaN(sal)) return;
-    if(!cityGroups[city]) cityGroups[city] = [];
-    cityGroups[city].push(sal);
-  });
-  const cityData = Object.entries(cityGroups)
-    .map(([city,arr])=>({ city, avg: arr.reduce((a,b)=>a+b,0)/arr.length }))
-    .sort((a,b)=>b.avg - a.avg)
-    .slice(0,10);
-  cityBarChart.data.labels = cityData.map(x=>x.city);
-  cityBarChart.data.datasets[0].data = cityData.map(x=>Math.round(x.avg));
-  cityBarChart.update();
-}
-
-// ----------------- File parsing / mapping -----------------
-function safeVal(r, keys){
-  for(const k of keys) if(r[k] !== undefined && r[k] !== null) return r[k];
-  return '';
-}
-
-fileInput.addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  Papa.parse(file, {
-    header:true,
-    skipEmptyLines:true,
-    complete: function(results){
-      rawData = results.data.map(r=>{
-        return {
-          role: (safeVal(r, ['role','Role','job','Job']) || '').toString().trim(),
-          country: (safeVal(r, ['country','Country']) || '').toString().trim(),
-          city: (safeVal(r, ['city','City']) || '').toString().trim(),
-          experience_years: (safeVal(r, ['experience_years','experience','Experience']) || '').toString().trim(),
-          annual_salary_inr: (safeVal(r, ['annual_salary_inr','annual_salary','salary','Salary'])||'').toString().replace(/,/g,'').trim(),
-          skills: (safeVal(r, ['skills','Skills','skill_list','Skill_list'])||'').toString().trim(),
-          skill_level: (safeVal(r, ['skill_level','Skill_level']) || '').toString().toLowerCase().trim()
-        };
-      });
-      updateFiltersUI();
-      applyFilters();
-    }
-  });
-});
-
-// ----------------- Download filtered CSV -----------------
-downloadBtn.addEventListener('click', ()=> downloadCSV(filtered));
-
-// ----------------- Initial load of sample CSV -----------------
-fetch('data/sample_salaries.csv')
-  .then(res=>res.text())
-  .then(txt=>{
-    Papa.parse(txt, { header:true, skipEmptyLines:true, complete(res){
-      rawData = res.data.map(r=>{
-        return {
-          role: (safeVal(r, ['role','Role','job','Job']) || '').toString().trim(),
-          country: (safeVal(r, ['country','Country']) || '').toString().trim(),
-          city: (safeVal(r, ['city','City']) || '').toString().trim(),
-          experience_years: (safeVal(r, ['experience_years','experience','Experience']) || '').toString().trim(),
-          annual_salary_inr: (safeVal(r, ['annual_salary_inr','annual_salary','salary','Salary'])||'').toString().replace(/,/g,'').trim(),
-          skills: (safeVal(r, ['skills','Skills','skill_list','Skill_list'])||'').toString().trim(),
-          skill_level: (safeVal(r, ['skill_level','Skill_level']) || '').toString().toLowerCase().trim()
-        };
-      });
-      updateFiltersUI();
-      applyFilters();
-    }});
-  }).catch(e=>{
-    // if sample CSV missing, keep rawData empty but do not crash
-    console.warn('Sample CSV load failed', e);
-    rawData = [];
-    updateFiltersUI();
-    applyFilters();
-  });
-
-// ----------------- Insights: Market Demand & Skill Gap -----------------
-// helper: parse skills (handles semicolon/comma/pipe/slash)
-function parseSkills(text){
-  if(!text) return [];
-  return text.toString().split(/[;,|\/]+/).map(s=>s.trim().toLowerCase()).filter(Boolean);
-}
-
-// Get rows filtered for insights (role, country, skill level)
-function getFilteredRowsForInsights(){
-  const role = roleFilter.value;
-  const country = countryFilter.value;
-  const selectedLevel = document.getElementById('skillLevelFilter').value;
-
-  return rawData.filter(r=>{
-    if(role && r.role !== role) return false;
-    if(country && r.country !== country) return false;
-    if(selectedLevel){
-      const level = (r.skill_level || '').toString().toLowerCase();
-      if(level){
-        if(level !== selectedLevel) return false;
-      } else {
-        const yrs = Number((r.experience_years||'').toString().replace(/[^0-9.]/g,''));
-        if(selectedLevel === 'novice' && !(yrs <= 1)) return false;
-        if(selectedLevel === 'mid' && !(yrs > 1 && yrs <= 3)) return false;
-        if(selectedLevel === 'senior' && !(yrs > 3)) return false;
+    if(level){
+      const lv = (r.skill_level||'').toLowerCase();
+      if(lv) { if(lv !== level) return false; }
+      else {
+        if(level==='novice' && !(yrs <= 1)) return false;
+        if(level==='mid' && !(yrs > 1 && yrs <= 3)) return false;
+        if(level==='senior' && !(yrs > 3)) return false;
       }
     }
     return true;
   });
+  renderStats(); renderCharts(); renderInsights();
 }
 
-// Build role-country max map to normalize demand
-function buildRoleCountryMaxCount(){
-  const counts = {};
-  rawData.forEach(r=>{
-    const key = `${r.role||''}||${r.country||''}||${(r.skill_level||'').toLowerCase()}`;
-    counts[key] = (counts[key]||0) + 1;
-  });
-  let max = 1;
-  Object.values(counts).forEach(v=> max = Math.max(max, v));
-  return {counts, max};
+// ---------- Stats & Charts ----------
+function renderStats(){
+  const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
+  if(salaries.length===0){ avgEl.textContent = medianEl.textContent = minEl.textContent = maxEl.textContent = "-"; return; }
+  const avgV = Math.round(salaries.reduce((a,b)=>a+b,0)/salaries.length);
+  const medV = Math.round(medianCalc(salaries));
+  const minV = Math.round(Math.min(...salaries));
+  const maxV = Math.round(Math.max(...salaries));
+  avgEl.textContent = `Avg: ₹${avgV.toLocaleString()}`; medianEl.textContent = `Median: ₹${medV.toLocaleString()}`; minEl.textContent = `Min: ₹${minV.toLocaleString()}`; maxEl.textContent = `Max: ₹${maxV.toLocaleString()}`;
 }
 
-// compute insights
+function renderCharts(){
+  const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
+  // distribution
+  let labels=[]; let counts=[];
+  if(salaries.length){
+    const minV = Math.min(...salaries); const maxV = Math.max(...salaries); const buckets=6; const range=maxV-minV || 1; const size = range/buckets;
+    counts = Array(buckets).fill(0); labels = [];
+    for(let i=0;i<buckets;i++){ const a=Math.round(minV + i*size); const b=Math.round(minV + (i+1)*size); labels.push(`₹${a.toLocaleString()} - ₹${b.toLocaleString()}`); }
+    salaries.forEach(v=>{ let idx = Math.floor((v-minV)/size); if(idx>=buckets) idx=buckets-1; counts[idx]++; });
+  }
+  salaryDistChart.data.labels = labels; salaryDistChart.data.datasets[0].data = counts; salaryDistChart.update();
+
+  // by experience
+  const groups = {}; filtered.forEach(r=>{ const yrs = toNumber(r.experience_years); const sal = toNumber(r.annual_salary_inr); if(isNaN(yrs)||isNaN(sal)) return; let b='Unknown'; if(yrs<=1) b='0-1'; else if(yrs<=3) b='1-3'; else if(yrs<=5) b='3-5'; else b='5+'; if(!groups[b]) groups[b]=[]; groups[b].push(sal); });
+  const expLabels = Object.keys(groups).sort(); const expAvgs = expLabels.map(k=>Math.round(groups[k].reduce((a,b)=>a+b,0)/groups[k].length));
+  salaryByExpChart.data.labels = expLabels; salaryByExpChart.data.datasets[0].data = expAvgs; salaryByExpChart.update();
+
+  // city
+  const city = {}; filtered.forEach(r=>{ const c = r.city||'Unknown'; const s=toNumber(r.annual_salary_inr); if(isNaN(s)) return; if(!city[c]) city[c]=[]; city[c].push(s); });
+  const cityArr = Object.entries(city).map(([c,arr])=>({city:c, avg: arr.reduce((a,b)=>a+b,0)/arr.length})).sort((a,b)=>b.avg-a.avg).slice(0,8);
+  cityBarChart.data.labels = cityArr.map(x=>x.city); cityBarChart.data.datasets[0].data = cityArr.map(x=>Math.round(x.avg)); cityBarChart.update();
+}
+
+// ---------- Insights & Resume-Fit C3 ----------
+
 function computeInsights(){
-  const rows = getFilteredRowsForInsights();
+  // compute global min/max salary across rawData for normalization
+  const allSalaries = rawData.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
+  const globalMin = allSalaries.length ? Math.min(...allSalaries) : 0;
+  const globalMax = allSalaries.length ? Math.max(...allSalaries) : (globalMin || 1);
 
-  // salaries (numbers)
-  const salaries = rows.map(r => {
-    const v = Number((r.annual_salary_inr||'').toString().replace(/,/g,''));
-    return isNaN(v) ? null : v;
-  }).filter(Boolean);
-
+  // For filtered rows, compute aggregates
+  const rows = filtered.slice();
+  const salaries = rows.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   const minV = salaries.length ? Math.min(...salaries) : null;
   const medV = salaries.length ? Math.round(medianCalc(salaries)) : null;
   const maxV = salaries.length ? Math.max(...salaries) : null;
   const avgV = salaries.length ? Math.round(salaries.reduce((a,b)=>a+b,0)/salaries.length) : null;
 
-  // demand (count)
-  const demandCount = rows.length;
-  const rc = buildRoleCountryMaxCount();
-  const demandScore = Math.round((demandCount / rc.max) * 100);
+  // demand
+  const postings = rows.reduce((s,r)=>s + (isNaN(Number(r.postings)) ? 0 : Number(r.postings)), 0);
+  const avgDemandScore = rows.length ? Math.round(rows.reduce((s,r)=>s + (isNaN(Number(r.demand_score))?0:Number(r.demand_score)),0)/rows.length) : 0;
 
-  // skills aggregation: frequency of skills in filtered rows
+  // top skills aggregated
   const skillCounts = {};
   rows.forEach(r=>{
-    const skills = parseSkills(r.skills || r.Skills || r.skill_list || '');
-    const uniq = Array.from(new Set(skills));
-    uniq.forEach(s => skillCounts[s] = (skillCounts[s]||0) + 1);
+    const sk = parseSkills(r.top_skills || '');
+    const uniqSk = uniq(sk);
+    uniqSk.forEach(s=> skillCounts[s] = (skillCounts[s]||0)+1);
   });
-  const topSkills = Object.entries(skillCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const topSkills = Object.entries(skillCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]);
 
-  return { rows, salaries, minV, medV, maxV, avgV, demandCount, demandScore, topSkills };
+  return { rows, salaries, minV, medV, maxV, avgV, postings, avgDemandScore, topSkills, globalMin, globalMax };
 }
 
-// compute skill gap between user and top required skills
-function computeSkillGap(insights, userSkillsText){
-  const userSkills = (userSkillsText||'').toLowerCase().split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
-  const required = insights.topSkills.map(x=>x[0]);
+// Resume Fit function (C3)
+function computeResumeFit(insights, userSkillsText){
+  const required = insights.topSkills.slice(0,8); // required list
+  const userSkills = parseSkills(userSkillsText || '');
   const matched = required.filter(s => userSkills.includes(s));
   const missing = required.filter(s => !userSkills.includes(s));
-  const gapPercent = Math.round(((required.length - matched.length) / Math.max(required.length,1)) * 100);
-  return { userSkills, required, matched, missing, gapPercent };
+  const skillMatchPct = required.length ? Math.round((matched.length / required.length) * 100) : 0;
+
+  // demand factor: average demand score normalized 0-1
+  const demandFactor = insights.avgDemandScore ? clamp(insights.avgDemandScore / 100, 0,1) : 0;
+
+  // salary factor: average salary normalized within global dataset (0-1)
+  const avgSal = insights.avgV || 0;
+  const salaryNorm = (avgSal - insights.globalMin) / (insights.globalMax - insights.globalMin || 1);
+  const salaryFactor = clamp(salaryNorm, 0,1);
+
+  // final score: 70% skills, 20% demand, 10% salary
+  // compute digit-by-digit to be safe:
+  const skillComponent = skillMatchPct * 0.70;
+  const demandComponent = (demandFactor * 100) * 0.20;
+  const salaryComponent = (salaryFactor * 100) * 0.10;
+  let score = skillComponent + demandComponent + salaryComponent;
+  score = Math.round(clamp(score, 0, 100));
+
+  // Recommendation summary
+  let recommended = missing.slice(0,6);
+  const tip = recommended.length ? `Focus on learning: ${recommended.join(', ')}.` : 'You already have core skills — consider building projects to showcase them.';
+
+  return { score, required, matched, missing, recommended, tip, components:{skillComponent:Math.round(skillComponent), demandComponent:Math.round(demandComponent), salaryComponent:Math.round(salaryComponent)} };
 }
 
-// render insights in small cards
 function renderInsights(){
   const ins = computeInsights();
-  const userSkillsVal = document.getElementById('userSkills').value || '';
-
-  // ensure container exists
-  const container = document.getElementById('insightsContainer');
-  if(!container) return;
-  container.innerHTML = ''; // clear
+  const userText = userSkillsInput.value || '';
+  // clear container
+  insightsContainer.innerHTML = '';
 
   // Salary card
-  const sal = document.createElement('div'); sal.className='insight-card';
-  sal.innerHTML = `<h3>Salary Range</h3>
-    <p>Min: ${ins.minV ? '₹'+ins.minV.toLocaleString() : '—'} &nbsp; Median: ${ins.medV ? '₹'+ins.medV.toLocaleString() : '—'} &nbsp; Max: ${ins.maxV ? '₹'+ins.maxV.toLocaleString() : '—'}</p>
-    <p>Avg: ${ins.avgV ? '₹'+ins.avgV.toLocaleString() : '—'}</p>`;
-  container.appendChild(sal);
+  const salaryCard = document.createElement('div'); salaryCard.className='insight-card';
+  salaryCard.innerHTML = `<h3>Salary Range</h3>
+    <div class="small-muted">Min: ${ins.minV ? '₹'+ins.minV.toLocaleString() : '—'} &nbsp; Median: ${ins.medV ? '₹'+ins.medV.toLocaleString() : '—'} &nbsp; Max: ${ins.maxV ? '₹'+ins.maxV.toLocaleString() : '—'}</div>
+    <div class="small-muted">Avg: ${ins.avgV ? '₹'+ins.avgV.toLocaleString() : '—'}</div>`;
+  insightsContainer.appendChild(salaryCard);
 
-  // Demand card
-  const demand = document.createElement('div'); demand.className='insight-card';
-  demand.innerHTML = `<h3>Market Demand</h3>
-    <p>Postings: <strong>${ins.demandCount}</strong></p>
-    <p>Demand score: <strong>${ins.demandScore}/100</strong></p>
-    <div class="bar-bg" aria-hidden="true"><div class="bar-fill" style="width:${ins.demandScore}%;"></div></div>`;
-  container.appendChild(demand);
+  // Market Demand card
+  const demandCard = document.createElement('div'); demandCard.className='insight-card';
+  demandCard.innerHTML = `<h3>Market Demand</h3>
+    <div class="small-muted">Postings: <strong>${ins.postings}</strong></div>
+    <div class="small-muted">Avg demand score: <strong>${ins.avgDemandScore}/100</strong></div>
+    <div class="bar-bg" aria-hidden="true"><div class="bar-fill" style="width:${ins.avgDemandScore}%"></div></div>`;
+  insightsContainer.appendChild(demandCard);
 
-  // Skill gap card
-  const gap = computeSkillGap(ins, userSkillsVal);
-  const gapCard = document.createElement('div'); gapCard.className='insight-card';
-  gapCard.innerHTML = `<h3>Skill Gap</h3>
-    <p>Top skills: ${ins.topSkills.map(x=>x[0]).join(', ') || '—'}</p>
-    <p>Your skills: ${gap.userSkills.join(', ') || '—'}</p>
-    <p>Missing: ${gap.missing.length ? gap.missing.join(', ') : 'None'}</p>
-    <p>Gap: <strong>${gap.gapPercent}%</strong></p>`;
-  container.appendChild(gapCard);
+  // Skill Gap card
+  const skillCard = document.createElement('div'); skillCard.className='insight-card';
+  skillCard.innerHTML = `<h3>Skill Gap</h3>
+    <div class="small-muted">Top skills: ${ins.topSkills.length?ins.topSkills.join(', '):'—'}</div>
+    <div class="small-muted">Tip: Provide your skills and press Analyze to see gap</div>`;
+  insightsContainer.appendChild(skillCard);
 
-  // update summary stats display if elements exist
-  if(avgEl) avgEl.textContent = ins.avgV ? `Avg: ₹${ins.avgV.toLocaleString()}` : 'Avg: -';
-  if(medianEl) medianEl.textContent = ins.medV ? `Median: ₹${ins.medV.toLocaleString()}` : 'Median: -';
-  if(minEl) minEl.textContent = ins.minV ? `Min: ₹${ins.minV.toLocaleString()}` : 'Min: -';
-  if(maxEl) maxEl.textContent = ins.maxV ? `Max: ₹${ins.maxV.toLocaleString()}` : 'Max: -';
+  // Resume-Fit (C3) card
+  const fit = computeResumeFit(ins, userText);
+  const fitCard = document.createElement('div'); fitCard.className='insight-card';
+  fitCard.innerHTML = `<h3>Resume-Fit</h3>
+    <div class="fit-score">${fit.score}%</div>
+    <div class="small-muted">Match components — Skills: ${fit.components.skillComponent} | Demand: ${fit.components.demandComponent} | Salary: ${fit.components.salaryComponent}</div>
+    <div style="margin-top:8px;"><strong>Missing / Recommended:</strong></div>
+    <div>${fit.recommended.length ? fit.recommended.map(s=>`<span class="chip">${s}</span>`).join('') : '<div class="small-muted">None — Good fit</div>'}</div>
+    <div style="margin-top:8px;" class="small-muted"><strong>Recommendation:</strong> ${fit.tip}</div>`;
+  insightsContainer.appendChild(fitCard);
+
+  // Also append a more detailed report area in the lower summary card
+  const lower = document.getElementById('summaryLower');
+  if(lower){
+    lower.innerHTML = `<h3 style="margin-top:0;">Resume-Fit Report</h3>
+      <div class="small-muted">Required skills (top): ${ins.topSkills.length?ins.topSkills.join(', '):'—'}</div>
+      <div class="small-muted">Your skills: ${(parseSkills(userText)||[]).join(', ') || '—'}</div>
+      <div style="margin-top:8px;"><strong>Missing skills details:</strong></div>
+      <div>${fit.missing.length ? fit.missing.map(s=>`<div class="small-muted">• ${s}</div>`).join('') : '<div class="small-muted">You match all top skills.</div>'}</div>
+      <div style="margin-top:8px;"><strong>Actionable next steps:</strong></div>
+      <ol>
+        <li>Learn the recommended skills listed above and add small projects that demonstrate them.</li>
+        <li>Update your resume summary to include matched keywords (e.g. ${ins.topSkills.slice(0,3).join(', ')}).</li>
+        <li>Apply to roles with demand score >= ${Math.max(50, Math.round(ins.avgDemandScore))} for better chances.</li>
+      </ol>`;
+  }
 }
 
-// Hook events for analyze + filters
-if(analyzeBtn) analyzeBtn.addEventListener('click', e=>{ e.preventDefault(); renderInsights(); });
-[roleFilter, countryFilter, expFilter].forEach(el => { if(el) el.addEventListener('change', applyFilters); });
-const skillLevelEl = document.getElementById('skillLevelFilter');
-if(skillLevelEl) skillLevelEl.addEventListener('change', ()=>{ applyFilters(); });
+// ---------- Events ----------
+analyzeBtn.addEventListener('click', e=>{ e.preventDefault(); renderInsights(); });
+downloadBtn.addEventListener('click', ()=>{ downloadFilteredCSV(); });
 
-// ----------------- Initialization -----------------
-buildCharts();
+// download helper
+function downloadFilteredCSV(){
+  const rows = filtered.map(r=>({
+    role: r.role, country: r.country, city: r.city, experience_years: r.experience_years,
+    annual_salary_inr: r.annual_salary_inr, top_skills: r.top_skills, demand_score: r.demand_score, postings: r.postings
+  }));
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'filtered_salaries.csv'; a.click(); URL.revokeObjectURL(url);
+}
 
-// run initial renderInsights when data loaded: renderInsights is called inside applyFilters() already
+// ---------- Initial run ----------
+renderInsights(); // will show placeholders when no data yet
 
 </script>
 </body>
 </html>
-
