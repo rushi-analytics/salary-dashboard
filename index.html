@@ -5,84 +5,111 @@
   <title>Salary Insights Dashboard — Resume-Fit (C3) + AI</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root{ --bg:#f4f7fb; --card:#fff; --muted:#62707a; --accent:#2f9cf0; --pad:14px; --green:#27ae60; --orange:#f39c12; }
-    body{ font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#0f1720; margin:0; padding:22px; }
-    .container{ max-width:1100px; margin:0 auto; }
+    :root{
+      --bg:#f4f7fb; --card:#fff; --muted:#62707a; --accent:#2f9cf0;
+      --pad:14px; --green:#27ae60; --orange:#f39c12; --glass: rgba(255,255,255,0.6);
+      --shadow: 0 6px 18px rgba(2,6,23,0.04);
+    }
+    [data-theme="dark"]{
+      --bg:#0b1220; --card:#07121a; --muted:#9aa6b2; --accent:#66b7ff; --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box}
+    body{ font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--card); margin:0; padding:22px; transition:background .2s, color .2s; }
+    .container{ max-width:1100px; margin:0 auto; color:var(--card); }
     header{ margin-bottom:16px; }
-    header h1{ margin:0; font-size:28px; }
-    header p{ margin:6px 0 0 0; color:var(--muted); font-size:14px; }
+    header h1{ margin:0; font-size:24px; color:var(--card); }
+    header p{ margin:6px 0 0 0; color:var(--muted); font-size:13px; }
 
     .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0; }
     .controls select, .controls input[type="text"], .controls button, .controls input[type="file"]{
-      padding:8px 10px; border-radius:8px; border:1px solid #e6eef6; background:var(--card); font-size:13px;
+      padding:8px 10px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); background:var(--glass); font-size:13px; color:var(--card);
     }
+    button{ cursor:pointer; border:none; background:var(--accent); color:white; padding:8px 12px; border-radius:8px; }
 
-    #stats{ background:var(--card); padding:10px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+    #stats{ background:var(--card); color: #02121a; padding:10px; border-radius:10px; box-shadow:var(--shadow); display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
     #insightsContainer{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
 
-    .insight-card{ background:var(--card); border-radius:10px; padding:12px; min-width:230px; box-shadow:0 6px 18px rgba(2,6,23,0.04); }
-    .insight-card h3{ margin:0 0 8px 0; font-size:15px; }
+    .insight-card{ background:var(--card); color:#02121a; border-radius:10px; padding:12px; min-width:230px; box-shadow:var(--shadow); }
+    .insight-card h3{ margin:0 0 8px 0; font-size:15px; color:#02121a; }
     .small-muted{ color:var(--muted); font-size:13px; }
 
     .bar-bg{ background:#eef6fb; border-radius:8px; height:12px; overflow:hidden; margin-top:6px; }
     .bar-fill{ height:12px; background:var(--accent); border-radius:8px 0 0 8px; }
 
     .charts{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-    .chart-card{ background:var(--card); padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.04); min-height:300px; }
+    .chart-card{ background:var(--card); padding:12px; border-radius:10px; box-shadow:var(--shadow); min-height:300px; color:#02121a; }
     canvas{ width:100% !important; height:260px !important; }
 
     footer{ margin-top:18px; color:var(--muted); font-size:13px; text-align:center; }
 
     .fit-score{ font-size:28px; font-weight:700; color:var(--accent); }
-    .recommend-list{ margin:8px 0 0 0; padding-left:16px; }
     .chip{ display:inline-block; padding:5px 8px; background:#f1f6fb; border-radius:8px; margin:4px; font-size:13px; color:#122; }
-    @media(max-width:900px){ .charts{ grid-template-columns:1fr; } }
+    .spinner{ width:28px; height:28px; border-radius:50%; border:4px solid rgba(255,255,255,0.2); border-top-color:var(--accent); animation:spin 1s linear infinite; display:inline-block; vertical-align:middle; margin-left:8px; }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+    .muted-dark{ color:var(--muted); font-size:12px; }
+    .controls-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .dark-toggle{ background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--card); padding:6px 8px; border-radius:8px; cursor:pointer; }
+
+    @media(max-width:900px){ .charts{ grid-template-columns:1fr; } .controls{ flex-direction:column; align-items:flex-start } }
   </style>
 
   <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body data-theme="light">
   <div class="container">
     <header>
       <h1>Salary Insights Dashboard — Resume-Fit (C3) + AI</h1>
-      <p>Upload a salary CSV (must include: top_skills, demand_score, postings, annual_salary_inr). To enable AI features: run the small proxy server (instructions below).</p>
+      <p>Upload a salary CSV (include: top_skills, demand_score, postings, annual_salary_inr). Run the backend proxy (<code>server.py</code>) to enable DeepSeek & JSearch features.</p>
     </header>
 
     <section class="controls">
-      <input id="fileInput" type="file" accept=".csv" />
-      <select id="roleFilter"><option value="">All Roles</option></select>
-      <select id="countryFilter"><option value="">All Countries</option></select>
-      <select id="expFilter">
-        <option value="">All Experience</option>
-        <option value="0-1">0–1</option>
-        <option value="1-3">1–3</option>
-        <option value="3-5">3–5</option>
-        <option value="5+">5+</option>
-      </select>
-      <select id="skillLevelFilter"><option value="">All levels</option><option value="novice">Novice</option><option value="mid">Mid</option><option value="senior">Senior</option></select>
-      <input id="userSkills" placeholder="Your skills (comma separated) or drag resume below" type="text" style="min-width:220px" />
-      <button id="analyzeBtn">Analyze</button>
-      <button id="downloadBtn">Download Filtered CSV</button>
+      <div class="controls-row">
+        <input id="fileInput" type="file" accept=".csv" />
+        <select id="roleFilter"><option value="">All Roles</option></select>
+        <select id="countryFilter"><option value="">All Countries</option></select>
+        <select id="expFilter">
+          <option value="">All Experience</option>
+          <option value="0-1">0–1</option>
+          <option value="1-3">1–3</option>
+          <option value="3-5">3–5</option>
+          <option value="5+">5+</option>
+        </select>
+        <select id="skillLevelFilter"><option value="">All levels</option><option value="novice">Novice</option><option value="mid">Mid</option><option value="senior">Senior</option></select>
+        <input id="userSkills" placeholder="Your skills (comma separated) or drag resume below" type="text" style="min-width:220px" />
+        <button id="analyzeBtn">Analyze</button>
+        <button id="downloadBtn">Download Filtered CSV</button>
+      </div>
+
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <button id="darkToggle" class="dark-toggle">Toggle Dark</button>
+        <div id="aiSpinner" style="display:none;" aria-hidden="true" title="Processing"><span class="spinner"></span></div>
+      </div>
     </section>
 
     <!-- resume upload -->
     <section style="margin-bottom:12px;">
       <label for="resumeFile">Upload Resume (PDF/TXT/DOCX): </label>
       <input id="resumeFile" type="file" accept=".pdf,.txt,.docx" />
-      <small class="small-muted">Resume will be parsed using AI (if available) or local extractor fallback.</small>
+      <small class="small-muted">Resume will be parsed via backend AI or local fallback.</small>
     </section>
 
     <div id="stats">
-      <strong>Stats:</strong>
+      <strong style="margin-right:8px">Stats:</strong>
       <span id="avg">Avg: -</span>
       <span id="median">Median: -</span>
       <span id="min">Min: -</span>
       <span id="max">Max: -</span>
     </div>
 
-    <div id="insightsContainer"></div>
+    <div id="insightsContainer">
+      <!-- AI Recommendations card (required by JS) -->
+      <div id="aiRecommendations" class="insight-card">
+        <h3>AI Skill Recommendations</h3>
+        <div class="small-muted">AI suggestions will appear here after Analyze.</div>
+      </div>
+    </div>
 
     <section class="charts">
       <div class="chart-card"><canvas id="salaryDist"></canvas></div>
@@ -92,76 +119,26 @@
     </section>
 
     <footer>
-      <small>Built with ❤️ • JSearch (RapidAPI) + OpenAI GPT-4o-mini (via secure proxy) • Option C3</small>
+      <small>Built by Rushikesh • DeepSeek + JSearch</small>
     </footer>
   </div>
 
 <script>
-/*
-  IMPORTANT: To enable the "real job demand" & "AI resume extraction" features you should run a
-  minimal secure proxy server that stores your API keys and forwards requests.
+/* ======================
+   Configuration
+   ====================== */
+const API_BASE = "http://127.0.0.1:5000"; // backend address
+/* ====================== */
 
-  Minimal Node/Express proxy example (save as server.js):
-
-  --------------------------------------------------------
-  // server.js
-  const express = require('express');
-  const fetch = require('node-fetch'); // or built-in fetch in Node 18+
-  const app = express();
-  app.use(express.json());
-
-  // load keys from env
-  const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-  const OPENAI_KEY = process.env.OPENAI_KEY;
-
-  // JSearch proxy (RapidAPI)
-  app.get('/api/jsearch', async (req, res) => {
-    const { query } = req.query; // e.g. "data analyst india"
-    if(!query) return res.status(400).json({error:'missing query'});
-    const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&page=1&num_pages=1`;
-    const r = await fetch(url, { headers: { 'X-RapidAPI-Key': RAPIDAPI_KEY, 'X-RapidAPI-Host':'jsearch.p.rapidapi.com' }});
-    const j = await r.json();
-    res.json(j);
-  });
-
-  // OpenAI proxy for GPT usage (responses endpoint)
-  app.post('/api/openai', async (req,res) => {
-    const payload = req.body; // forward to OpenAI
-    const r = await fetch('https://api.openai.com/v1/responses', {
-      method:'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type':'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const j = await r.json();
-    res.json(j);
-  });
-
-  app.listen(3000, ()=>console.log('Proxy running on http://localhost:3000'));
-  --------------------------------------------------------
-
-  Run: RAPIDAPI_KEY=xxxx OPENAI_KEY=yyyy node server.js
-
-  Then point client calls to '/api/jsearch' and '/api/openai' (the code below does that).
-  This keeps your keys off the browser.
-
-  If you cannot run a proxy, you can still use a local fallback:
-    - JSearch: will use postings & demand_score from your CSV
-    - AI extraction: uses a local simple extractor (regexp) — less accurate.
-
-  Ok — code below offers:
-   - client functions to call /api/jsearch & /api/openai
-   - fallback logic if server not available
-*/
-
-//// Utilities
+/* ---------- Utilities ---------- */
 function toNumber(v){ return v === '' || v === null || v === undefined ? NaN : +v; }
-function medianCalc(arr){ const s=arr.slice().sort((a,b)=>a-b); const n=s.length; if(n===0) return NaN; const m=Math.floor(n/2); return n%2? s[m] : (s[m-1]+s[m])/2; }
+function medianCalc(arr){ const s = arr.slice().sort((a,b)=>a-b); const n=s.length; if(n===0) return NaN; const m=Math.floor(n/2); return n%2 ? s[m] : (s[m-1]+s[m]) / 2; }
 function parseSkills(text){ if(!text) return []; return text.toString().split(/[;,|\/]+/).map(s=>s.trim().toLowerCase()).filter(Boolean); }
 function uniq(arr){ return Array.from(new Set(arr)); }
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 function safeVal(r, keys){ for(const k of keys) if(r[k] !== undefined && r[k] !== null) return r[k]; return ''; }
 
-// State & DOM
+/* ---------- DOM & State ---------- */
 let rawData = []; let filtered = [];
 const fileInput = document.getElementById('fileInput');
 const roleFilter = document.getElementById('roleFilter');
@@ -172,11 +149,14 @@ const userSkillsInput = document.getElementById('userSkills');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const resumeFile = document.getElementById('resumeFile');
+const aiRecEl = document.getElementById('aiRecommendations');
+const aiSpinner = document.getElementById('aiSpinner');
+const darkToggle = document.getElementById('darkToggle');
 
 const avgEl = document.getElementById('avg'), medianEl = document.getElementById('median'), minEl = document.getElementById('min'), maxEl = document.getElementById('max');
 const insightsContainer = document.getElementById('insightsContainer');
 
-// Charts
+/* ---------- Charts ---------- */
 let salaryDistChart, salaryByExpChart, cityBarChart;
 function createChart(ctx,cfg){ return new Chart(ctx,cfg); }
 function buildCharts(){
@@ -186,7 +166,7 @@ function buildCharts(){
 }
 buildCharts();
 
-// map CSV row function
+/* ---------- CSV mapping ---------- */
 function mapRow(r){
   return {
     role: (safeVal(r, ['role','Role','job','Job'])||'').toString().trim(),
@@ -200,7 +180,7 @@ function mapRow(r){
   };
 }
 
-// file input
+/* ---------- File handlers ---------- */
 fileInput.addEventListener('change', e=>{
   const f = e.target.files[0]; if(!f) return;
   Papa.parse(f, { header:true, skipEmptyLines:true, complete(results){
@@ -209,7 +189,7 @@ fileInput.addEventListener('change', e=>{
   }});
 });
 
-// fetch sample
+// try load sample CSV if present
 fetch('data/sample_salaries.csv').then(r=>r.text()).then(txt=>{
   Papa.parse(txt, { header:true, skipEmptyLines:true, complete(res){
     rawData = res.data.map(mapRow);
@@ -217,17 +197,16 @@ fetch('data/sample_salaries.csv').then(r=>r.text()).then(txt=>{
   }});
 }).catch(()=>{/* no sample */});
 
-// filters UI
+/* ---------- Filters UI ---------- */
 function updateFiltersUI(){
   const roles = uniq(rawData.map(r=>r.role)).filter(Boolean).sort();
   const countries = uniq(rawData.map(r=>r.country)).filter(Boolean).sort();
   roleFilter.innerHTML = '<option value="">All Roles</option>' + roles.map(x=>`<option>${x}</option>`).join('');
   countryFilter.innerHTML = '<option value="">All Countries</option>' + countries.map(x=>`<option>${x}</option>`).join('');
 }
-
 [roleFilter,countryFilter,expFilter,skillLevelFilter].forEach(el=>{ if(el) el.addEventListener('change', applyFilters); });
 
-// apply filters
+/* ---------- Apply filters ---------- */
 function applyFilters(){
   const role = roleFilter.value, country = countryFilter.value, exp = expFilter.value, level = skillLevelFilter.value;
   filtered = rawData.filter(r=>{
@@ -251,10 +230,10 @@ function applyFilters(){
     }
     return true;
   });
-  renderStats(); renderCharts(); renderInsights();
+  renderStats(); renderCharts(); /* renderInsights is called by Analyze or resumeFile change */
 }
 
-// stats & charts
+/* ---------- Stats & Charts ---------- */
 function renderStats(){
   const salaries = filtered.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   if(salaries.length===0){ avgEl.textContent = medianEl.textContent = minEl.textContent = maxEl.textContent = "-"; return; }
@@ -287,55 +266,48 @@ function renderCharts(){
   cityBarChart.data.labels = cityArr.map(x=>x.city); cityBarChart.data.datasets[0].data = cityArr.map(x=>Math.round(x.avg)); cityBarChart.update();
 }
 
-// Insights + Resume-Fit + AI integration
+/* ---------- Backend helpers: extract + ai ---------- */
+async function extractResumeTextBackend(file){
+  const fd = new FormData(); fd.append('file', file, file.name);
+  const res = await fetch(`${API_BASE}/api/extract_resume`, { method:'POST', body: fd });
+  return res.ok ? await res.json() : { text: '' };
+}
+
+async function getAISkillsBackend(text){
+  const fd = new FormData(); fd.append('text', text || '');
+  const res = await fetch(`${API_BASE}/api/ai_skills`, { method:'POST', body: fd });
+  return res.ok ? await res.json() : { skills: null, error: 'ai error' };
+}
+
+async function getAIPlanBackend(role, top_skills, user_skills){
+  const fd = new FormData();
+  fd.append('role', role || '');
+  fd.append('top_skills', top_skills || '');
+  fd.append('user_skills', user_skills || '');
+  const res = await fetch(`${API_BASE}/api/ai_plan`, { method:'POST', body: fd });
+  return res.ok ? await res.json() : { plan: null, error: 'plan error' };
+}
+
 async function fetchJobDemandFromAPI(query){
-  // Recommended: run the proxy server at /api/jsearch (server stores your RAPIDAPI_KEY).
-  // This client will call the proxy. If proxy fails, we fallback to local CSV values.
   try {
-    const res = await fetch(`/api/jsearch?query=${encodeURIComponent(query)}`);
+    const res = await fetch(`${API_BASE}/api/job_demand?role=${encodeURIComponent(query)}`);
     if(!res.ok) throw new Error('proxy error');
     const j = await res.json();
-    // JSearch returns results under j.data usually. We'll compute postings & demand_score from those results.
     const posts = (j.data || []).map(x => ({
       title: x.job_title || x.title || '',
       company: x.employer_name || x.company_name || '',
       location: x.job_city || x.job_country || x.location || '',
       description: x.job_description || '',
-      // approximate 'score' (JSearch doesn't provide demand_score; we'll use 75 as placeholder if hits)
       score: 75
     }));
     return { posts, count: posts.length, avgScore: posts.length ? 75 : 0 };
   } catch(err){
-    console.warn('JSearch proxy unavailable, falling back to CSV demand values.', err);
+    console.warn('JSearch proxy unavailable, fallback to CSV', err);
     return null;
   }
 }
 
-// OpenAI AI call via proxy
-async function callOpenAIProxy(prompt, max_tokens=400){
-  try {
-    const payload = {
-      model: "gpt-4o-mini",
-      input: prompt,
-      max_output_tokens: max_tokens
-    };
-    const r = await fetch('/api/openai', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if(!r.ok) throw new Error('openai proxy error');
-    const j = await r.json();
-    // openai 'responses' format: j.output[0].content[0].text OR j.output_text
-    if(j.output_text) return j.output_text;
-    if(j.output && Array.isArray(j.output)) {
-      // try to join string outputs
-      return j.output.map(o => (typeof o === 'string' ? o : (o.content ? JSON.stringify(o.content) : ''))).join('\n');
-    }
-    return JSON.stringify(j);
-  } catch(e){
-    console.warn('OpenAI proxy failed', e);
-    return null;
-  }
-}
-
-// compute insights
+/* ---------- Resume-Fit logic ---------- */
 function computeInsights(){
   const allSalaries = rawData.map(r=>toNumber(r.annual_salary_inr)).filter(v=>!isNaN(v));
   const globalMin = allSalaries.length ? Math.min(...allSalaries) : 0;
@@ -362,92 +334,85 @@ function computeInsights(){
   return { rows, salaries, minV, medV, maxV, avgV, postings, avgDemandScore, topSkills, globalMin, globalMax };
 }
 
-// compute Resume-Fit (C3)
 function computeResumeFit(insights, userSkillsText){
   const required = insights.topSkills.slice(0,8);
   const userSkills = parseSkills(userSkillsText || '');
   const matched = required.filter(s => userSkills.includes(s));
   const missing = required.filter(s => !userSkills.includes(s));
   const skillMatchPct = required.length ? Math.round((matched.length / required.length) * 100) : 0;
-
   const demandFactor = insights.avgDemandScore ? clamp(insights.avgDemandScore / 100, 0,1) : 0;
-
   const avgSal = insights.avgV || 0;
   const salaryNorm = (avgSal - insights.globalMin) / (insights.globalMax - insights.globalMin || 1);
   const salaryFactor = clamp(salaryNorm, 0,1);
-
   const skillComponent = skillMatchPct * 0.70;
   const demandComponent = (demandFactor * 100) * 0.20;
   const salaryComponent = (salaryFactor * 100) * 0.10;
   let score = skillComponent + demandComponent + salaryComponent;
   score = Math.round(clamp(score, 0, 100));
-
   const recommended = missing.slice(0,6);
   const tip = recommended.length ? `Focus on learning: ${recommended.join(', ')}.` : 'You already have core skills — consider building projects to showcase them.';
-
   return { score, required, matched, missing, recommended, tip, components:{skillComponent:Math.round(skillComponent), demandComponent:Math.round(demandComponent), salaryComponent:Math.round(salaryComponent)} };
 }
 
-// render insights (and call JSearch/AI where appropriate)
+/* ---------- Render insights (uses AI plan if available) ---------- */
 async function renderInsights(){
+  // show spinner
+  aiSpinner.style.display = 'inline-block';
+
   const ins = computeInsights();
   const userText = userSkillsInput.value || '';
 
-  // call JSearch using top role+country (asynchronous, optional)
   let jsearchInfo = null;
   if(ins.rows.length){
     const qRole = ins.rows[0].role || roleFilter.value || '';
     const qCountry = ins.rows[0].country || countryFilter.value || '';
-    if(qRole){
-      // call proxy; if fails we'll fallback to CSV values
-      jsearchInfo = await fetchJobDemandFromAPI(`${qRole} ${qCountry}`); // may return null
-    }
+    if(qRole) jsearchInfo = await fetchJobDemandFromAPI(`${qRole} ${qCountry}`);
   }
 
-  // AI resume extractor: if user uploaded resume, call OpenAI proxy to extract skills
+  // Try to parse resume via backend extract OR use user input
   let resumeParsedSkills = [];
   if(resumeFile.files && resumeFile.files[0]){
-    const f = resumeFile.files[0];
-    // read file as text for simple formats; for PDF/DOCX we send to OpenAI proxy
-    const txt = await (new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload = () => res(reader.result);
-      reader.onerror = () => rej('read error');
-      // For plain text files, read as text
-      if(f.type === 'text/plain' || f.name.endsWith('.txt')) reader.readAsText(f);
-      else reader.readAsArrayBuffer(f); // send arraybuffer to proxy
-    }).catch(()=>null));
-
-    // if OpenAI proxy available, call it
-    const prompt = `Extract a comma-separated list of skills and tools from the following resume text. Only output skills. Resume: ${typeof txt === 'string' ? txt : '[binary file uploaded]'}`;
-    const aiResp = await callOpenAIProxy(prompt, 600);
-    if(aiResp){
-      // try to parse returned text into skills
-      const maybe = aiResp.replace(/\n/g,',').replace(/["']/g,'').split(/[;,]+/).map(s=>s.trim()).filter(Boolean);
-      resumeParsedSkills = uniq(maybe.map(s=>s.toLowerCase()));
-      // set user skills input to extracted string (non-destructive)
-      if(resumeParsedSkills.length && !userSkillsInput.value) userSkillsInput.value = resumeParsedSkills.join(', ');
-    } else {
-      // fallback simple parser from text (if available)
-      if(typeof txt === 'string'){
-        const fallbackSkills = Array.from(new Set((txt.match(/(Python|SQL|Excel|Power BI|Tableau|AWS|Docker|Kubernetes|Java|C\+\+|C#|R|Pandas|NumPy|TensorFlow|PyTorch|Spark|Hadoop|Machine Learning|Deep Learning|DevOps|Azure|GCP)/gi) || []).map(s=>s.toLowerCase())));
-        resumeParsedSkills = fallbackSkills;
-        if(resumeParsedSkills.length && !userSkillsInput.value) userSkillsInput.value = resumeParsedSkills.join(', ');
+    // call backend extract
+    const ex = await extractResumeTextBackend(resumeFile.files[0]);
+    const resumeText = ex && ex.text ? ex.text : '';
+    if(resumeText && resumeText.length>10){
+      // ask DeepSeek for structured skills (ai_skills returns JSON arr string or text)
+      const aiSkillsResp = await getAISkillsBackend(resumeText);
+      // aiSkillsResp.skills expected string (model returns JSON array string); attempt parse
+      let skillsArr = [];
+      try {
+        const maybe = aiSkillsResp.skills || aiSkillsResp.ai_skills || aiSkillsResp.skills;
+        if(maybe){
+          // Attempt to parse JSON array
+          const trimmed = maybe.trim();
+          if(trimmed.startsWith('[')) skillsArr = JSON.parse(trimmed);
+          else {
+            // strip non-json and split by commas/newlines
+            skillsArr = trimmed.replace(/[\r\n]+/g,',').replace(/["']/g,'').split(/[;,]+/).map(s=>s.trim()).filter(Boolean);
+          }
+        }
+      } catch(e){
+        // fallback parser
+        const txt = aiSkillsResp.skills ? aiSkillsResp.skills : resumeText;
+        skillsArr = Array.from(new Set((txt.match(/(Python|SQL|Excel|Power BI|Tableau|AWS|Docker|Kubernetes|Java|C\+\+|C#|R|Pandas|NumPy|TensorFlow|PyTorch|Spark|Hadoop|Machine Learning|Deep Learning|DevOps|Azure|GCP)/gi) || []).map(s=>s.toLowerCase())));
       }
+      resumeParsedSkills = skillsArr.map(s=>s.toString().toLowerCase());
+      if(resumeParsedSkills.length && !userSkillsInput.value) userSkillsInput.value = resumeParsedSkills.join(', ');
     }
   }
 
-  // Build UI cards
+  // compute final skillsToUse
+  const skillsToUse = resumeParsedSkills.length ? resumeParsedSkills.join(', ') : (userSkillsInput.value || '');
+
+  // build UI cards
   insightsContainer.innerHTML = '';
 
-  // Salary card
   const salaryCard = document.createElement('div'); salaryCard.className='insight-card';
   salaryCard.innerHTML = `<h3>Salary Range</h3>
     <div class="small-muted">Min: ${ins.minV ? '₹'+ins.minV.toLocaleString() : '—'} &nbsp; Median: ${ins.medV ? '₹'+ins.medV.toLocaleString() : '—'} &nbsp; Max: ${ins.maxV ? '₹'+ins.maxV.toLocaleString() : '—'}</div>
     <div class="small-muted">Avg: ${ins.avgV ? '₹'+ins.avgV.toLocaleString() : '—'}</div>`;
   insightsContainer.appendChild(salaryCard);
 
-  // Market Demand (CSV + JSearch)
   const demandCard = document.createElement('div'); demandCard.className='insight-card';
   const avgDemand = jsearchInfo ? Math.round(jsearchInfo.avgScore) : ins.avgDemandScore;
   const postingsVal = jsearchInfo ? (jsearchInfo.count || ins.postings) : ins.postings;
@@ -457,16 +422,13 @@ async function renderInsights(){
     <div class="bar-bg" aria-hidden="true"><div class="bar-fill" style="width:${avgDemand}%"></div></div>`;
   insightsContainer.appendChild(demandCard);
 
-  // Skill Gap card
   const skillCard = document.createElement('div'); skillCard.className='insight-card';
   skillCard.innerHTML = `<h3>Skill Gap</h3>
     <div class="small-muted">Top skills: ${ins.topSkills.length?ins.topSkills.join(', '):'—'}</div>
     <div class="small-muted">Tip: Provide your skills or upload resume and press Analyze to see gap</div>`;
   insightsContainer.appendChild(skillCard);
 
-  // Resume-Fit C3: combine everything
-  // Use resumeParsedSkills (highest priority) else user text
-  const skillsToUse = resumeParsedSkills.length ? resumeParsedSkills.join(', ') : (userSkillsInput.value || '');
+  // compute fit
   const insForCompute = Object.assign({}, ins, { avgDemandScore: avgDemand, globalMin: ins.globalMin, globalMax: ins.globalMax });
   const fit = computeResumeFit(insForCompute, skillsToUse);
 
@@ -479,46 +441,45 @@ async function renderInsights(){
     <div style="margin-top:8px;" class="small-muted"><strong>Recommendation:</strong> ${fit.tip}</div>`;
   insightsContainer.appendChild(fitCard);
 
-  // AI-generated recommendations (call OpenAI proxy to create learning plan)
-  const aiRecCard = document.createElement('div'); aiRecCard.className = 'insight-card';
-  aiRecCard.innerHTML = `<h3>AI Skill Recommendations</h3><div class="small-muted" id="aiRecArea">Generating suggestions…</div>`;
-  insightsContainer.appendChild(aiRecCard);
+  // AI plan: call backend /api/ai_plan (DeepSeek) for structured JSON plan
+  const aiPlanCard = document.createElement('div'); aiPlanCard.className='insight-card';
+  aiPlanCard.innerHTML = `<h3>AI Skill Plan</h3><div class="small-muted" id="aiPlanArea">Generating plan…</div>`;
+  insightsContainer.appendChild(aiPlanCard);
 
-  // Prepare prompt for OpenAI
-  const prompt = `
-You are an assistant that creates a concise skill-up plan.
-Context: role = "${ins.rows[0] && ins.rows[0].role ? ins.rows[0].role : roleFilter.value}", top_skills = "${ins.topSkills.join(', ')}", user_skills = "${skillsToUse}".
-Return JSON with fields:
-- missing: [list of missing top skills]
-- priority: [list of top 3 skills to learn]
-- roadmap: { skill: steps (3 steps) , resources: 2 URLs }
-- short_note: one sentence recommendation.
-Output only JSON.
-`;
-
-  const aiResp = await callOpenAIProxy(prompt, 600);
-  if(aiResp){
-    // try parse JSON
-    let json = null;
-    try { json = JSON.parse(aiResp.trim()); }
-    catch(e){
-      // sometimes model returns plain text — attempt to extract JSON substring
-      const start = aiResp.indexOf('{'); const end = aiResp.lastIndexOf('}');
-      if(start>=0 && end>start) {
-        try { json = JSON.parse(aiResp.substring(start, end+1)); } catch(e2){ json = null; }
+  // call backend ai_plan (role, top_skills, user_skills)
+  const roleForPlan = ins.rows[0] && ins.rows[0].role ? ins.rows[0].role : roleFilter.value || '';
+  try {
+    const planResp = await getAIPlanBackend(roleForPlan, ins.topSkills.join(', '), skillsToUse);
+    if(planResp && planResp.plan){
+      // attempt parse JSON strictly
+      let parsed = null;
+      try { parsed = JSON.parse(planResp.plan); }
+      catch(err){
+        // try to extract JSON substring
+        const s = planResp.plan; const start = s.indexOf('{'); const end = s.lastIndexOf('}');
+        if(start>=0 && end>start) {
+          try { parsed = JSON.parse(s.substring(start, end+1)); } catch(e){}
+        }
       }
-    }
-    if(json){
-      const out = `<div class="small-muted"><strong>Priority:</strong> ${(json.priority||[]).join(', ') || '—'}</div>
-      <div style="margin-top:6px;"><strong>Roadmap:</strong></div>
-      ${ (json.roadmap && Object.keys(json.roadmap).length) ? Object.entries(json.roadmap).map(([k,v])=>`<div class="small-muted"><strong>${k}:</strong> ${v.steps ? v.steps.join(' | ') : '' } <br/><span class="small-muted">Resources: ${(v.resources||[]).slice(0,2).map(u=>`<a href="${u}" target="_blank">${u}</a>`).join(', ')}</span></div>`).join('') : '<div class="small-muted">—</div>'}
-      <div style="margin-top:6px;"><em>${json.short_note || ''}</em></div>`;
-      document.getElementById('aiRecArea').innerHTML = out;
+      const area = document.getElementById('aiPlanArea');
+      if(parsed){
+        // build HTML
+        const priority = (parsed.priority||[]).slice(0,3).map(x=>`<span class="chip">${x}</span>`).join(' ');
+        let roadmapHtml = '';
+        if(parsed.roadmap && Object.keys(parsed.roadmap).length){
+          for(const [sk, detail] of Object.entries(parsed.roadmap)){
+            roadmapHtml += `<div style="margin-top:6px;"><strong>${sk}:</strong><div class="small-muted">Steps: ${(detail.steps||[]).join(' | ')}</div><div class="small-muted">Resources: ${(detail.resources||[]).slice(0,2).map(u=>`<a href="${u}" target="_blank">${u}</a>`).join(', ')}</div></div>`;
+          }
+        }
+        area.innerHTML = `<div class="small-muted"><strong>Priority:</strong> ${priority || '—'}</div>${roadmapHtml}<div style="margin-top:8px;"><em>${parsed.short_note||''}</em></div>`;
+      } else {
+        area.innerText = planResp.plan.slice(0,200);
+      }
     } else {
-      document.getElementById('aiRecArea').innerText = aiResp.slice(0,1000);
+      document.getElementById('aiPlanArea').innerText = 'AI plan unavailable: ' + (planResp.error || 'unknown');
     }
-  } else {
-    document.getElementById('aiRecArea').innerText = 'AI suggestions currently unavailable (proxy down).';
+  } catch(e){
+    document.getElementById('aiPlanArea').innerText = 'AI plan error';
   }
 
   // update lower summary
@@ -536,9 +497,15 @@ Output only JSON.
         <li>Apply to roles with demand score >= ${Math.max(50, Math.round(ins.avgDemandScore || 0))} for better chances.</li>
       </ol>`;
   }
+
+  // Update the AI Recommendations card with extracted skills for quick view
+  aiRecEl.innerHTML = `<h3>AI Skill Recommendations</h3><div class="small-muted">Extracted skills: ${(resumeParsedSkills.length? resumeParsedSkills.join(', '): '—')}</div>`;
+
+  // hide spinner
+  aiSpinner.style.display = 'none';
 }
 
-// download filtered csv
+/* ---------- Download filtered CSV ---------- */
 function downloadFilteredCSV(){
   const rows = filtered.map(r=>({
     role: r.role, country: r.country, city: r.city, experience_years: r.experience_years,
@@ -550,14 +517,27 @@ function downloadFilteredCSV(){
   const a = document.createElement('a'); a.href = url; a.download = 'filtered_salaries.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
-// events
-analyzeBtn.addEventListener('click', e=>{ e.preventDefault(); renderInsights(); });
+/* ---------- Events ---------- */
+analyzeBtn.addEventListener('click', async (e)=>{
+  e.preventDefault();
+  // Clear previous and start spinner
+  aiRecEl.innerHTML = `<h3>AI Skill Recommendations</h3><div class="small-muted">Working…</div>`;
+  aiSpinner.style.display = 'inline-block';
+  // Recompute filters-driven charts/stats (ensure filtered data updated)
+  applyFilters();
+  // Now render insights (this performs backend calls)
+  await renderInsights();
+});
+
 downloadBtn.addEventListener('click', downloadFilteredCSV);
+resumeFile.addEventListener('change', async ()=>{ /* optional auto-run analyze when resume uploaded */ });
+darkToggle.addEventListener('click', ()=>{
+  const el = document.body;
+  const current = el.getAttribute('data-theme') || 'light';
+  el.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
+});
 
-// Resume upload change (trigger analyze to extract skills)
-resumeFile.addEventListener('change', async ()=>{ await renderInsights(); });
-
-// initial placeholder
+/* ---------- Initial run ---------- */
 renderInsights();
 
 </script>
