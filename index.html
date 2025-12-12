@@ -3,79 +3,79 @@
 <head>
   <meta charset="utf-8" />
   <title>Salary Insights Dashboard — Resume-Fit (C3) + AI</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- ✅ Correct CSS link -->
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="assets/style.css">
-
-  <!-- Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-
-<body data-theme="light">
+<body>
   <div class="container">
-
     <header>
-      <h1>Salary Insights Dashboard — Resume-Fit (C3) + AI</h1>
-      <p>Upload a salary CSV and resume. Backend AI adds DeepSeek + JSearch features.</p>
+      <h1>Salary Insights Dashboard — Resume-Fit (C3)</h1>
+      <p class="muted">Upload a resume and press <strong>Analyze</strong>. Backend AI will return score, charts and learning plan.</p>
     </header>
 
-    <!-- CONTROLS -->
-    <section class="controls">
-      <input id="fileInput" type="file" accept=".csv" />
-      <select id="roleFilter"><option value="">All Roles</option></select>
-      <select id="countryFilter"><option value="">All Countries</option></select>
-      <select id="expFilter">
-        <option value="">All Experience</option>
-        <option value="0-1">0–1</option>
-        <option value="1-3">1–3</option>
-        <option value="3-5">3–5</option>
-        <option value="5+">5+</option>
-      </select>
-      <input id="userSkills" placeholder="Your skills" type="text" />
-      <button id="analyzeBtn">Analyze</button>
-      <button id="downloadBtn">Download CSV</button>
-    </section>
+    <main>
+      <section class="upload-row">
+        <input id="resumeFile" type="file" accept=".pdf,.docx,.txt" />
+        <button id="analyzeBtn" class="btn primary">Analyze</button>
+        <div id="spinner" class="spinner" aria-hidden="true" style="display:none"></div>
+      </section>
 
-    <!-- RESUME UPLOAD -->
-    <section style="margin-bottom:12px;">
-      <label>Upload Resume: </label>
-      <input id="resumeFile" type="file" accept=".pdf,.txt,.docx" />
-      <small class="small-muted">Resume is parsed via backend AI</small>
-    </section>
+      <section id="summary" class="card-row">
+        <div class="card card-small" id="cardStats">
+          <h3>Stats</h3>
+          <div id="statSalary">Salary — Min: — Median: — Max: —</div>
+          <div id="statDemand">Demand: —</div>
+        </div>
 
-    <!-- STATS -->
-    <div id="stats">
-      <strong>Stats:</strong>
-      <span id="avg">Avg: -</span>
-      <span id="median">Median: -</span>
-      <span id="min">Min: -</span>
-      <span id="max">Max: -</span>
-    </div>
+        <div class="card card-small" id="cardFit">
+          <h3>Resume-Fit</h3>
+          <div id="fitScore" class="fit-score">—%</div>
+          <div id="fitComponents" class="muted small">Skills: — | Demand: — | Salary: —</div>
+        </div>
 
-    <!-- INSIGHTS -->
-    <div id="insightsContainer">
-      <div id="aiRecommendations" class="insight-card">
-        <h3>AI Skill Recommendations</h3>
-        <div class="small-muted">Waiting for analysis…</div>
-      </div>
-    </div>
+        <div class="card card-small" id="cardSkills">
+          <h3>Top Skills</h3>
+          <div id="topSkills" class="muted small">—</div>
+        </div>
 
-    <!-- CHARTS -->
-    <section class="charts">
-      <div class="chart-card"><canvas id="salaryDist"></canvas></div>
-      <div class="chart-card"><canvas id="salaryByExp"></canvas></div>
-      <div class="chart-card"><canvas id="cityBar"></canvas></div>
-      <div class="chart-card" id="summaryLower"></div>
-    </section>
+        <div class="card card-small" id="cardMissing">
+          <h3>Missing / Recommended</h3>
+          <div id="missingSkills" class="muted small">—</div>
+        </div>
+      </section>
 
-    <footer><small>Built by Rushikesh • DeepSeek + JSearch</small></footer>
+      <section id="charts" class="chart-grid">
+        <div class="chart-card">
+          <h4>Salary Distribution (synthetic)</h4>
+          <canvas id="chartSalaryDist"></canvas>
+        </div>
+        <div class="chart-card">
+          <h4>Skill Match</h4>
+          <canvas id="chartSkillMatch"></canvas>
+        </div>
+        <div class="chart-card">
+          <h4>Top Job Postings (sample)</h4>
+          <div id="jobList" class="muted small">—</div>
+        </div>
+        <div class="chart-card" id="planCard">
+          <h4>AI Learning Plan</h4>
+          <div id="aiPlan" class="muted small">—</div>
+        </div>
+      </section>
 
+      <section id="report" class="card">
+        <h3>Full Report JSON</h3>
+        <pre id="rawOutput" style="white-space:pre-wrap;max-height:260px;overflow:auto;background:#f7f9fb;padding:10px;border-radius:6px;">—</pre>
+      </section>
+    </main>
+
+    <footer>
+      <small>Built by Rushikesh • DeepSeek + JSearch (optional)</small>
+    </footer>
   </div>
 
-  <!-- Your existing JS remains exactly the same -->
-  <script src="script.js"></script>
-
+  <script src="assets/script.js"></script>
 </body>
 </html>
