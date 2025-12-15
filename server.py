@@ -1,20 +1,20 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import os
 import json
 import requests
-from dotenv import load_dotenv
-import os
 import re
+from dotenv import load_dotenv
 
 # -------------------------------------------------
 # LOAD ENV
 # -------------------------------------------------
 load_dotenv()
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not DEEPSEEK_API_KEY:
-    raise RuntimeError("❌ DEEPSEEK_API_KEY missing in .env")
+if not GROQ_API_KEY:
+    raise RuntimeError("❌ GROQ_API_KEY missing in .env")
 
 # -------------------------------------------------
 # APP INIT
@@ -34,90 +34,35 @@ app.add_middleware(
 # -------------------------------------------------
 async def extract_text(file: UploadFile):
     raw = await file.read()
-    try:
-        text = raw.decode("utf-8", errors="ignore")
-        text = re.sub(r"\s+", " ", text).strip()
-
-        if len(text) < 100:
-            return "Resume content is too short or unreadable."
-
-        return text[:6000]
-    except Exception:
-        return "Resume extraction failed."
+    text = raw.decode("utf-8", errors="ignore")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:6000] if len(text) > 100 else "Short resume text."
 
 # -------------------------------------------------
-# SAFE FALLBACK (UI NEVER CRASHES)
+# GROQ AI ANALYSIS (REAL AI)
 # -------------------------------------------------
-def safe_fallback(error, raw):
-    return {
-        "error": error,
-        "raw": raw,
-        "ats": 0,
-        "required_skills": [],
-        "matched_skills": [],
-        "missing_skills": [],
-        "salary_range": {"min": 0, "median": 0, "max": 0},
-        "salary_distribution": {"labels": [], "counts": []},
-        "demand_score": 0,
-        "ai_plan": {"priority": [], "roadmap": {}, "short_note": ""},
-        "jobs": []
-    }
-
-# -------------------------------------------------
-# NORMALIZE OUTPUT (FRONTEND SAFE)
-# -------------------------------------------------
-def normalize_output(data: dict):
-    return {
-        "ats": int(data.get("ats", 0)),
-        "required_skills": data.get("required_skills", []),
-        "matched_skills": data.get("matched_skills", []),
-        "missing_skills": data.get("missing_skills", []),
-        "salary_range": {
-            "min": data.get("salary_range", {}).get("min", 0),
-            "median": data.get("salary_range", {}).get("median", 0),
-            "max": data.get("salary_range", {}).get("max", 0),
-        },
-        "salary_distribution": data.get(
-            "salary_distribution",
-            {"labels": [], "counts": []}
-        ),
-        "demand_score": int(data.get("demand_score", 0)),
-        "ai_plan": data.get(
-            "ai_plan",
-            {"priority": [], "roadmap": {}, "short_note": ""}
-        ),
-        "jobs": data.get("jobs", []),
-    }
-
-# -------------------------------------------------
-# DEEPSEEK AI ANALYSIS (PRODUCTION SAFE)
-# -------------------------------------------------
-def deepseek_analyze(text: str):
-    url = "https://api.deepseek.com/chat/completions"
+def groq_analyze(text: str):
+    url = "https://api.groq.com/openai/v1/chat/completions"
 
     headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
     }
 
     prompt = f"""
-You are a STRICT ATS Resume & Career Intelligence AI.
+You are an ATS Resume & Career Intelligence AI.
 
-RULES:
-- Output ONLY valid JSON
-- No markdown
-- No explanations
-- No text outside JSON
+Return ONLY valid JSON (no markdown, no text).
 
-JSON SCHEMA (DO NOT CHANGE KEYS):
+JSON FORMAT:
 {{
-  "ats": 0,
+  "ats": 0-100,
   "required_skills": [],
   "matched_skills": [],
   "missing_skills": [],
   "salary_range": {{ "min": 0, "median": 0, "max": 0 }},
   "salary_distribution": {{ "labels": [], "counts": [] }},
-  "demand_score": 0,
+  "demand_score": 0-100,
   "ai_plan": {{
     "priority": [],
     "roadmap": {{}},
@@ -128,37 +73,66 @@ JSON SCHEMA (DO NOT CHANGE KEYS):
   ]
 }}
 
-Resume text:
+Resume:
 {text}
 """
 
     payload = {
-        "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0
+        "model": "mixtral-8x7b-32768",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.2
     }
 
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    data = response.json()
+
+    if "choices" not in data:
+        return fallback("Groq API error", data)
+
+    content = data["choices"][0]["message"]["content"]
+
     try:
-        response = requests.post(
-            url, headers=headers, json=payload, timeout=60
-        )
-        data = response.json()
+        start = content.find("{")
+        end = content.rfind("}") + 1
+        return normalize(json.loads(content[start:end]))
+    except Exception:
+        return fallback("Invalid JSON from AI", content)
 
-        if "choices" not in data:
-            return safe_fallback("DeepSeek API error", data)
+# -------------------------------------------------
+# NORMALIZE OUTPUT
+# -------------------------------------------------
+def normalize(d):
+    return {
+        "ats": int(d.get("ats", 0)),
+        "required_skills": d.get("required_skills", []),
+        "matched_skills": d.get("matched_skills", []),
+        "missing_skills": d.get("missing_skills", []),
+        "salary_range": d.get("salary_range", {"min":0,"median":0,"max":0}),
+        "salary_distribution": d.get("salary_distribution", {"labels":[],"counts":[]}),
+        "demand_score": int(d.get("demand_score", 0)),
+        "ai_plan": d.get("ai_plan", {"priority":[],"roadmap":{},"short_note":""}),
+        "jobs": d.get("jobs", [])
+    }
 
-        content = data["choices"][0]["message"]["content"]
-
-        try:
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            parsed = json.loads(content[start:end])
-            return normalize_output(parsed)
-        except Exception:
-            return safe_fallback("AI returned invalid JSON", content)
-
-    except Exception as e:
-        return safe_fallback("Request failed", str(e))
+# -------------------------------------------------
+# SAFE FALLBACK
+# -------------------------------------------------
+def fallback(error, raw):
+    return {
+        "error": error,
+        "raw": raw,
+        "ats": 0,
+        "required_skills": [],
+        "matched_skills": [],
+        "missing_skills": [],
+        "salary_range": {"min":0,"median":0,"max":0},
+        "salary_distribution": {"labels":[],"counts":[]},
+        "demand_score": 0,
+        "ai_plan": {"priority":[],"roadmap":{},"short_note":""},
+        "jobs": []
+    }
 
 # -------------------------------------------------
 # API ENDPOINT
@@ -166,7 +140,7 @@ Resume text:
 @app.post("/api/ai_full_analysis")
 async def analyze(resume: UploadFile = File(...)):
     text = await extract_text(resume)
-    return deepseek_analyze(text)
+    return groq_analyze(text)
 
 # -------------------------------------------------
 # START SERVER
