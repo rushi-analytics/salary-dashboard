@@ -34,9 +34,12 @@ app.add_middleware(
 # -------------------------------------------------
 async def extract_text(file: UploadFile):
     raw = await file.read()
-    text = raw.decode("utf-8", errors="ignore")
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:6000] if len(text) > 100 else "Short resume text."
+    try:
+        text = raw.decode("utf-8", errors="ignore")
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:6000] if len(text) > 100 else "Short resume text."
+    except Exception:
+        return "Resume extraction failed."
 
 # -------------------------------------------------
 # GROQ AI ANALYSIS (REAL AI)
@@ -52,17 +55,17 @@ def groq_analyze(text: str):
     prompt = f"""
 You are an ATS Resume & Career Intelligence AI.
 
-Return ONLY valid JSON (no markdown, no text).
+Return ONLY valid JSON. No markdown. No explanation.
 
 JSON FORMAT:
 {{
-  "ats": 0-100,
+  "ats": 0,
   "required_skills": [],
   "matched_skills": [],
   "missing_skills": [],
   "salary_range": {{ "min": 0, "median": 0, "max": 0 }},
   "salary_distribution": {{ "labels": [], "counts": [] }},
-  "demand_score": 0-100,
+  "demand_score": 0,
   "ai_plan": {{
     "priority": [],
     "roadmap": {{}},
@@ -78,30 +81,34 @@ Resume:
 """
 
     payload = {
-        "model": "mixtral-8x7b-32768",
+        "model": "llama-3.1-8b-instant",   # ✅ FREE + ACTIVE
         "messages": [
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.2
     }
 
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
-    data = response.json()
-
-    if "choices" not in data:
-        return fallback("Groq API error", data)
-
-    content = data["choices"][0]["message"]["content"]
-
     try:
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        data = response.json()
+
+        if "choices" not in data:
+            return fallback("Groq API error", data)
+
+        content = data["choices"][0]["message"]["content"]
+
+        # Extract JSON safely
         start = content.find("{")
         end = content.rfind("}") + 1
-        return normalize(json.loads(content[start:end]))
-    except Exception:
-        return fallback("Invalid JSON from AI", content)
+        parsed = json.loads(content[start:end])
+
+        return normalize(parsed)
+
+    except Exception as e:
+        return fallback("AI parsing failed", str(e))
 
 # -------------------------------------------------
-# NORMALIZE OUTPUT
+# NORMALIZE OUTPUT (FRONTEND SAFE)
 # -------------------------------------------------
 def normalize(d):
     return {
@@ -117,7 +124,7 @@ def normalize(d):
     }
 
 # -------------------------------------------------
-# SAFE FALLBACK
+# SAFE FALLBACK (NEVER CRASH UI)
 # -------------------------------------------------
 def fallback(error, raw):
     return {
