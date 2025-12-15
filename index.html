@@ -2,80 +2,192 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Salary Insights Dashboard — Resume-Fit (C3) + AI</title>
+  <title>Salary Insights Dashboard — Resume AI</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="assets/style.css">
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* compact styling for demo */
+    :root{--bg:#f4f7fb;--card:#fff;--text:#02121a;--muted:#62707a;--accent:#2f9cf0}
+    body{font-family:Inter,system-ui,Roboto,Arial; background:var(--bg); color:var(--text); padding:22px;}
+    .container{max-width:980px;margin:0 auto;}
+    header h1{margin:0 0 6px 0;font-size:20px}
+    .controls{display:flex;gap:8px;align-items:center;margin:14px 0}
+    input[type=file]{padding:6px}
+    button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04);margin-bottom:12px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    canvas{width:100%!important;height:220px!important}
+    pre{background:#f3f6f9;padding:10px;border-radius:6px;overflow:auto;max-height:200px}
+    .muted{color:var(--muted);font-size:13px}
+  </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Salary Insights Dashboard — Resume-Fit (C3)</h1>
-      <p class="muted">Upload a resume and press <strong>Analyze</strong>. Backend AI will return score, charts and learning plan.</p>
+      <h1>Salary Insights Dashboard — Resume AI (A1)</h1>
+      <div class="muted">Upload only a resume (PDF/TXT/DOCX). Backend AI will extract skills, estimate salary & demand and return charts & learning plan.</div>
     </header>
 
-    <main>
-      <section class="upload-row">
-        <input id="resumeFile" type="file" accept=".pdf,.docx,.txt" />
-        <button id="analyzeBtn" class="btn primary">Analyze</button>
-        <div id="spinner" class="spinner" aria-hidden="true" style="display:none"></div>
-      </section>
+    <section class="controls">
+      <input id="resumeFile" type="file" accept=".pdf,.docx,.txt" />
+      <button id="analyzeBtn">Analyze</button>
+      <div id="spinner" style="display:none;margin-left:10px">Processing …</div>
+    </section>
 
-      <section id="summary" class="card-row">
-        <div class="card card-small" id="cardStats">
-          <h3>Stats</h3>
-          <div id="statSalary">Salary — Min: — Median: — Max: —</div>
-          <div id="statDemand">Demand: —</div>
-        </div>
+    <div id="topCards" class="grid">
+      <div class="card">
+        <h3>Stats</h3>
+        <div id="statSalary">Salary — Min: — Median: — Max: —</div>
+        <div id="statDemand" class="muted">Demand: —</div>
+      </div>
 
-        <div class="card card-small" id="cardFit">
-          <h3>Resume-Fit</h3>
-          <div id="fitScore" class="fit-score">—%</div>
-          <div id="fitComponents" class="muted small">Skills: — | Demand: — | Salary: —</div>
-        </div>
+      <div class="card">
+        <h3>Resume-Fit</h3>
+        <div id="fitScore" style="font-size:28px;color:var(--accent)">—%</div>
+        <div id="fitComponents" class="muted">Skills: — | Demand: — | Salary: —</div>
+      </div>
 
-        <div class="card card-small" id="cardSkills">
-          <h3>Top Skills</h3>
-          <div id="topSkills" class="muted small">—</div>
-        </div>
+      <div class="card">
+        <h3>Top Skills</h3>
+        <div id="topSkills" class="muted">—</div>
+      </div>
 
-        <div class="card card-small" id="cardMissing">
-          <h3>Missing / Recommended</h3>
-          <div id="missingSkills" class="muted small">—</div>
-        </div>
-      </section>
+      <div class="card">
+        <h3>Missing / Recommended</h3>
+        <div id="missingSkills" class="muted">—</div>
+      </div>
+    </div>
 
-      <section id="charts" class="chart-grid">
-        <div class="chart-card">
-          <h4>Salary Distribution (synthetic)</h4>
-          <canvas id="chartSalaryDist"></canvas>
-        </div>
-        <div class="chart-card">
-          <h4>Skill Match</h4>
-          <canvas id="chartSkillMatch"></canvas>
-        </div>
-        <div class="chart-card">
-          <h4>Top Job Postings (sample)</h4>
-          <div id="jobList" class="muted small">—</div>
-        </div>
-        <div class="chart-card" id="planCard">
-          <h4>AI Learning Plan</h4>
-          <div id="aiPlan" class="muted small">—</div>
-        </div>
-      </section>
+    <div class="grid">
+      <div class="card">
+        <h4>Salary Distribution</h4>
+        <canvas id="chartSalaryDist"></canvas>
+      </div>
+      <div class="card">
+        <h4>Skill Match</h4>
+        <canvas id="chartSkillMatch"></canvas>
+      </div>
+    </div>
 
-      <section id="report" class="card">
-        <h3>Full Report JSON</h3>
-        <pre id="rawOutput" style="white-space:pre-wrap;max-height:260px;overflow:auto;background:#f7f9fb;padding:10px;border-radius:6px;">—</pre>
-      </section>
-    </main>
+    <div class="grid">
+      <div class="card">
+        <h4>Top Job Postings (sample)</h4>
+        <div id="jobList" class="muted">—</div>
+      </div>
+      <div class="card">
+        <h4>AI Learning Plan</h4>
+        <div id="aiPlan" class="muted">—</div>
+      </div>
+    </div>
 
-    <footer>
-      <small>Built by Rushikesh • DeepSeek + JSearch (optional)</small>
-    </footer>
+    <div class="card">
+      <h4>Full Report (raw JSON)</h4>
+      <pre id="rawOutput">—</pre>
+    </div>
+
   </div>
 
-  <script src="assets/script.js"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    // Backend base url
+    const API_BASE = "http://127.0.0.1:5000";
+
+    const resumeFile = document.getElementById('resumeFile');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const spinner = document.getElementById('spinner');
+
+    const statSalary = document.getElementById('statSalary');
+    const statDemand = document.getElementById('statDemand');
+    const fitScore = document.getElementById('fitScore');
+    const fitComponents = document.getElementById('fitComponents');
+    const topSkillsEl = document.getElementById('topSkills');
+    const missingSkillsEl = document.getElementById('missingSkills');
+    const aiPlanEl = document.getElementById('aiPlan');
+    const jobListEl = document.getElementById('jobList');
+    const rawOutput = document.getElementById('rawOutput');
+
+    let salaryChart=null, skillChart=null;
+    function showSpinner(on){ spinner.style.display = on ? 'inline-block' : 'none'; }
+
+    function makeSalaryChart(labels, counts){
+      const ctx = document.getElementById('chartSalaryDist').getContext('2d');
+      if(salaryChart) salaryChart.destroy();
+      salaryChart = new Chart(ctx, { type:'bar', data:{labels:labels, datasets:[{label:'Count', data:counts, backgroundColor:'rgba(47,156,240,0.6)'}]}, options:{plugins:{legend:{display:false}}} });
+    }
+    function makeSkillChart(required, matched){
+      const ctx = document.getElementById('chartSkillMatch').getContext('2d');
+      if(skillChart) skillChart.destroy();
+      const labels = ['Matched','Missing'];
+      const values = [matched, Math.max(0, required - matched)];
+      skillChart = new Chart(ctx, { type:'doughnut', data:{labels, datasets:[{data:values, backgroundColor:['#3dd','pink']}]}, options:{plugins:{legend:{position:'bottom'}}} });
+    }
+
+    function numberFormat(n){ return n ? n.toLocaleString() : '—'; }
+
+    async function postResume(file){
+      if(!file){ alert('Choose a resume file (pdf/docx/txt)'); return; }
+      showSpinner(true);
+      const fd = new FormData(); fd.append('file', file, file.name);
+      try {
+        const res = await fetch(API_BASE + '/api/ai_full_analysis', { method:'POST', body: fd });
+        if(!res.ok){
+          const txt = await res.text();
+          throw new Error('Server returned ' + res.status + ' : ' + txt);
+        }
+        const data = await res.json();
+        renderAll(data);
+      } catch(err){
+        console.error(err);
+        alert('Analysis failed: ' + err.message);
+      } finally {
+        showSpinner(false);
+      }
+    }
+
+    function renderAll(payload){
+      rawOutput.textContent = JSON.stringify(payload, null, 2);
+
+      const s = payload.salary_range || {};
+      statSalary.textContent = `Salary — Min: ₹${numberFormat(s.min)} Median: ₹${numberFormat(s.median)} Max: ₹${numberFormat(s.max)}`;
+      statDemand.textContent = `Demand: ${payload.demand_score ?? '—'}/100`;
+
+      fitScore.textContent = (payload.resume_fit_score ?? '0') + '%';
+      const comp = payload.components || {};
+      fitComponents.textContent = `Skills: ${comp.skillComponent ?? '—'} | Demand: ${comp.demandComponent ?? '—'} | Salary: ${comp.salaryComponent ?? '—'}`;
+
+      topSkillsEl.textContent = (payload.required_skills || []).join(', ') || '—';
+      missingSkillsEl.textContent = (payload.missing_skills || []).join(', ') || '—';
+
+      if(payload.ai_plan){
+        let html = '';
+        const p = payload.ai_plan;
+        if(p.priority && p.priority.length) html += `<div><strong>Priority:</strong> ${p.priority.slice(0,3).join(', ')}</div>`;
+        if(p.roadmap){
+          for(const [k,v] of Object.entries(p.roadmap)){
+            html += `<div style="margin-top:6px"><strong>${k}:</strong><div class="muted">Steps: ${(v.steps||[]).join(' | ')}</div><div class="muted">Resources: ${(v.resources||[]).slice(0,2).join(' | ')}</div></div>`;
+          }
+        }
+        if(p.short_note) html += `<div style="margin-top:8px" class="muted"><em>${p.short_note}</em></div>`;
+        aiPlanEl.innerHTML = html;
+      } else aiPlanEl.innerHTML = '<div class="muted">—</div>';
+
+      if(payload.jobs && payload.jobs.length){
+        jobListEl.innerHTML = payload.jobs.slice(0,6).map(j => `<div><strong>${j.title}</strong> — ${j.company || ''} (${j.location || ''})</div>`).join('');
+      } else jobListEl.innerHTML = '<div class="muted">No external job results (proxy missing)</div>';
+
+      const sd = payload.salary_distribution || {labels:['0-3L','3-6L','6-9L','9-12L'], counts:[2,6,5,1]};
+      makeSalaryChart(sd.labels, sd.counts);
+
+      const reqLen = (payload.required_skills || []).length;
+      const matched = (payload.matched_skills || []).length;
+      makeSkillChart(reqLen, matched);
+    }
+
+    analyzeBtn.addEventListener('click', ()=> {
+      const f = resumeFile.files[0];
+      postResume(f);
+    });
+  </script>
 </body>
 </html>
