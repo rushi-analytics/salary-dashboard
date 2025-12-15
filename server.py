@@ -1,108 +1,131 @@
+import os
+import json
+import uvicorn
+import requests
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import json
+from dotenv import load_dotenv
+from PyPDF2 import PdfReader
+import docx
+
+load_dotenv()
+
+DEEPSEEK_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 app = FastAPI()
 
-# -----------------------------------------
-# CORS FIX (CRITICAL FOR FRONTEND)
-# -----------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # allow all (local dev)
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -----------------------------------------
-# HEALTH CHECK (SO YOU KNOW SERVER IS RUNNING)
-# -----------------------------------------
-@app.get("/health")
-def health():
-    return {"status": "running"}
+# -----------------------------
+# EXTRACT TEXT FROM PDF/DOCX
+# -----------------------------
+def extract_text(file_bytes, filename):
+    name = filename.lower()
 
-# -----------------------------------------
-# SAFE RESUME TEXT EXTRACTOR
-# -----------------------------------------
-async def extract_text(file: UploadFile):
+    # PDF
+    if name.endswith(".pdf"):
+        try:
+            reader = PdfReader(file_bytes)
+            text = ""
+            for page in reader.pages:
+                t = page.extract_text() or ""
+                text += t + "\n"
+            return text
+        except:
+            pass
+
+    # DOCX
+    if name.endswith(".docx"):
+        try:
+            doc_file = docx.Document(file_bytes)
+            return "\n".join([p.text for p in doc_file.paragraphs])
+        except:
+            pass
+
+    # TXT fallback
     try:
-        raw = await file.read()
-        text = raw.decode("utf-8", errors="ignore")
-        if len(text.strip()) < 20:
-            return "Resume text extracted (mocked)."
-        return text[:3000]  # limit size
+        return file_bytes.read().decode("utf-8", errors="ignore")
     except:
-        return "Resume extraction failed — using fallback text."
+        return ""
 
+# -----------------------------
+# CALL DEEPSEEK AI
+# -----------------------------
+def deepseek(prompt):
+    url = "https://api.deepseek.com/v1/chat/completions"
 
-# -----------------------------------------
-# MAIN AI ENDPOINT (NEVER CRASHES)
-# -----------------------------------------
-@app.post("/api/ai_full_analysis")
-async def ai_full_analysis(resume: UploadFile = File(...)):
-    text = await extract_text(resume)
-
-    # Mock ATS score (replace later if needed)
-    ats_score = 62  
-
-    # Extract very primitive sample skills
-    skills = []
-    for s in ["python", "sql", "power bi", "tableau", "excel"]:
-        if s in text.lower():
-            skills.append(s)
-
-    required = ["python", "sql", "power bi"]
-    missing = [s for s in required if s not in skills]
-
-    # Synthetic salary mock
-    salary_range = {"min": 300000, "median": 450000, "max": 900000}
-
-    # Synthetic distribution
-    distribution = {
-        "labels": ["0–3L", "3–6L", "6–9L", "9–12L"],
-        "counts": [3, 6, 5, 2]
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_KEY}",
+        "Content-Type": "application/json"
     }
 
-    # Learning plan
-    ai_plan = {
-        "priority": ["python", "sql", "excel"],
-        "roadmap": {
-            "python": {
-                "steps": ["Basics", "Mini projects"],
-                "resources": ["https://youtu.be/...", "https://coursera.org"]
-            },
-            "sql": {
-                "steps": ["Queries", "Joins", "Case studies"],
-                "resources": ["https://mode.com/sql-tutorial"]
-            }
-        },
-        "short_note": "Focus on missing skills and build portfolio projects."
-    }
-
-    # Return SAFE payload
-    return {
-        "ats": ats_score,
-        "required_skills": required,
-        "matched_skills": skills,
-        "missing_skills": missing,
-        "salary_range": salary_range,
-        "salary_distribution": distribution,
-        "demand_score": 75,
-        "ai_plan": ai_plan,
-        "jobs": [
-            {"title": "Data Analyst", "company": "ABC Corp", "location": "Pune"},
-            {"title": "Business Analyst", "company": "XYZ Ltd", "location": "Remote"}
+    body = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "You are an expert ATS scanner and resume reviewer."},
+            {"role": "user", "content": prompt}
         ],
-        "raw_resume_sample": text[:200]
+        "max_tokens": 700
     }
 
+    r = requests.post(url, json=body, headers=headers)
+    try:
+        return r.json()["choices"][0]["message"]["content"]
+    except:
+        return "AI response error"
 
-# -----------------------------------------
+# -----------------------------
+# MAIN ENDPOINT — FULL ANALYSIS
+# -----------------------------
+@app.post("/api/ai_full_analysis")
+async def analyze(resume: UploadFile = File(...)):
+    raw = await resume.read()
+    text = extract_text(raw, resume.filename)
+
+    if len(text) < 30:
+        return {"error": "Resume text could not be extracted."}
+
+    # ---------------- AI REQUEST ----------------
+    prompt = f"""
+    Analyze this resume deeply.
+
+    RESUME TEXT:
+    {text}
+
+    Generate a JSON response EXACTLY in this structure:
+
+    {{
+      "ats_score": number 0-100,
+      "top_skills": ["skill1","skill2",...],
+      "missing_skills": ["skill1","skill2",...],
+      "ai_summary": "Short AI-written summary of resume",
+      "recommendations": ["fix bullet points", "add achievements", ...],
+      "skill_roadmap": {{
+          "priority": ["skill1","skill2"],
+          "steps": ["step1","step2"]
+      }}
+    }}
+    Only return JSON. No explanation.
+    """
+
+    ai_raw = deepseek(prompt)
+
+    # Try parsing JSON
+    try:
+        ai_json = json.loads(ai_raw)
+    except:
+        ai_json = {"error": "AI returned invalid JSON", "raw": ai_raw}
+
+    return ai_json
+
+# -----------------------------
 # START BACKEND
-# -----------------------------------------
-print("🚀 Backend running at http://127.0.0.1:5000")
-
+# -----------------------------
 if __name__ == "__main__":
+    print("🚀 Backend running at http://127.0.0.1:5000")
     uvicorn.run(app, host="127.0.0.1", port=5000)
