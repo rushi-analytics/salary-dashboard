@@ -1,7 +1,6 @@
-
 fastapi
 uvicorn
-python-dotenv
-requests
-PyPDF2
 python-docx
+PyPDF2
+requests
+
