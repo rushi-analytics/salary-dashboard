@@ -12,7 +12,6 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 app = FastAPI()
 
-# Allow frontend calls
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,9 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------
-# Extract text
-# -----------------------------
 async def extract_text(file: UploadFile):
     raw = await file.read()
 
@@ -31,26 +27,23 @@ async def extract_text(file: UploadFile):
         text = raw.decode("utf-8", errors="ignore")
         if len(text.strip()) < 20:
             return "Resume text too short — fallback text."
-        return text[:5000]
+        return text[:6000]
     except:
-        return "Resume extraction failed — fallback used."
+        return "Resume extraction failed — fallback text."
 
 
-# -----------------------------
-# DeepSeek R1 Call
-# -----------------------------
 def deepseek_analyze(text):
     prompt = f"""
-You are an ATS + Salary + Skill Analysis AI. 
-Read the resume text below and return STRICT JSON ONLY.
+You are an expert ATS & Resume Intelligence AI.
+Analyze the resume below and return STRICT JSON ONLY.
 
 Resume:
 {text}
 
-Return JSON with exactly these fields:
+Return EXACT JSON with:
 
 {{
-  "ats": <0-100 score>,
+  "ats": <0-100>,
   "required_skills": [...],
   "matched_skills": [...],
   "missing_skills": [...],
@@ -71,8 +64,9 @@ Return JSON with exactly these fields:
       {{"title": "...", "company": "...", "location": "..."}}
   ]
 }}
-IMPORTANT: Return ONLY VALID JSON. No explanations.
-    """
+
+Only return JSON. No text outside JSON.
+"""
 
     url = "https://api.deepseek.com/chat/completions"
 
@@ -84,22 +78,18 @@ IMPORTANT: Return ONLY VALID JSON. No explanations.
     payload = {
         "model": "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2
+        "temperature": 0.1
     }
 
     response = requests.post(url, headers=headers, json=payload)
-    
-    raw = response.json()["choices"][0]["message"]["content"]
+    result = response.json()["choices"][0]["message"]["content"]
 
     try:
-        return json.loads(raw)
+        return json.loads(result)
     except:
-        return {"error": "AI returned invalid JSON", "raw": raw}
+        return {"error": "AI returned invalid JSON", "raw": result}
 
 
-# -----------------------------
-# API Endpoint
-# -----------------------------
 @app.post("/api/ai_full_analysis")
 async def analyze(resume: UploadFile = File(...)):
     text = await extract_text(resume)
@@ -107,9 +97,6 @@ async def analyze(resume: UploadFile = File(...)):
     return ai_json
 
 
-# -----------------------------
-# Run server
-# -----------------------------
 print("🚀 Backend running at http://127.0.0.1:5000")
 
 if __name__ == "__main__":
