@@ -1,67 +1,91 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Resume AI — A1 ATS + Salary Insights</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <title>Salary Insights Dashboard — Resume AI (A/B/C/D)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
 
-<link rel="stylesheet" href="assets/style.css">
+  <!-- Styles -->
+  <link rel="stylesheet" href="assets/style.css">
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
-<body>
 
+<body data-theme="light">
 <div class="container">
 
-<h2>Resume AI Analytics — ATS + Salary Insights</h2>
-<p>Upload Resume + Job Description to get ATS score, skills, salary insights & AI learning plan.</p>
+  <header>
+    <h1>Salary Insights Dashboard — Resume AI (A/B/C/D)</h1>
+    <p>Upload only a resume. Backend extracts Skills, Salary, Demand & builds an AI Learning Plan.</p>
+  </header>
 
-<!-- Upload Section -->
-<section class="upload-box">
-    <label>Upload Resume:</label>
-    <input type="file" id="resumeFile" accept=".pdf,.docx,.txt">
+  <!-- ===== Resume Upload ===== -->
+  <section class="controls">
+      <input id="resumeFile" type="file" accept=".pdf,.txt,.docx"/>
+      <button id="analyzeBtn">Analyze</button>
+      <span id="spinner" class="spinner" style="display:none;"></span>
+  </section>
 
-    <label>Upload Job Description:</label>
-    <input type="file" id="jdFile" accept=".pdf,.docx,.txt">
+  <!-- ===== A : ATS SCORE ===== -->
+  <div class="insight-card">
+      <h3>A — ATS Score</h3>
+      <div id="atsScore" class="fit-score">—%</div>
+      <div class="small-muted">Resume ATS Compatibility Score</div>
+  </div>
 
-    <button id="analyzeBtn">Analyze</button>
-</section>
+  <!-- ===== BASIC STATS ===== -->
+  <div id="stats" class="insight-card">
+      <h3>Stats</h3>
+      <div id="statSalary">Salary — Min: — Median: — Max: —</div>
+      <div id="statDemand">Demand: —</div>
+  </div>
 
-<!-- ATS Score -->
-<div class="card">
-    <h3>A — ATS Score</h3>
-    <div id="atsScore">0%</div>
+  <!-- ===== B : Skills ===== -->
+  <div class="insight-card">
+      <h3>B — Top Skills Detected</h3>
+      <div id="topSkills">—</div>
+  </div>
+
+  <div class="insight-card">
+      <h3>B — Missing / Recommended Skills</h3>
+      <div id="missingSkills">—</div>
+  </div>
+
+  <!-- ===== C : Market Insights ===== -->
+  <section class="charts">
+      <div class="chart-card">
+          <h3>C — Salary Distribution</h3>
+          <canvas id="chartSalaryDist"></canvas>
+      </div>
+
+      <div class="chart-card">
+          <h3>C — Skill Match</h3>
+          <canvas id="chartSkillMatch"></canvas>
+      </div>
+  </section>
+
+  <!-- ===== D : Jobs + AI Learning Plan ===== -->
+  <div class="insight-card">
+      <h3>D — Top Job Postings</h3>
+      <div id="jobList">—</div>
+  </div>
+
+  <div class="insight-card">
+      <h3>D — AI Learning Plan</h3>
+      <div id="aiPlan">—</div>
+  </div>
+
+  <!-- RAW JSON -->
+  <div class="chart-card">
+      <h3>Full Report (raw JSON)</h3>
+      <pre id="rawOutput" style="font-size:12px; white-space:pre-wrap;"></pre>
+  </div>
+
 </div>
 
-<!-- Skills -->
-<div class="card">
-    <h3>B — Top Skills Found</h3>
-    <div id="topSkills">—</div>
-</div>
-
-<div class="card">
-    <h3>C — Missing Skills</h3>
-    <div id="missingSkills">—</div>
-</div>
-
-<!-- Charts -->
-<div class="charts">
-    <canvas id="salaryChart"></canvas>
-    <canvas id="matchChart"></canvas>
-</div>
-
-<!-- AI plan -->
-<div class="card">
-    <h3>D — AI Learning Plan</h3>
-    <div id="aiPlan">—</div>
-</div>
-
-<!-- JSON Debug -->
-<pre id="rawOutput"></pre>
-
-</div>
-
+<!-- Script -->
 <script src="assets/script.js"></script>
 
 </body>
