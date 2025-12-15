@@ -34,7 +34,6 @@ app.add_middleware(
 # -------------------------------------------------
 async def extract_text(file: UploadFile):
     raw = await file.read()
-
     try:
         text = raw.decode("utf-8", errors="ignore")
         text = re.sub(r"\s+", " ", text).strip()
@@ -43,96 +42,29 @@ async def extract_text(file: UploadFile):
             return "Resume content is too short or unreadable."
 
         return text[:6000]
-
     except Exception:
         return "Resume extraction failed."
 
 # -------------------------------------------------
-# DEEPSEEK AI ANALYSIS (PRODUCTION SAFE)
+# SAFE FALLBACK (UI NEVER CRASHES)
 # -------------------------------------------------
-def deepseek_analyze(text: str):
-    url = "https://api.deepseek.com/chat/completions"
-
-    headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-        "Content-Type": "application/json",
+def safe_fallback(error, raw):
+    return {
+        "error": error,
+        "raw": raw,
+        "ats": 0,
+        "required_skills": [],
+        "matched_skills": [],
+        "missing_skills": [],
+        "salary_range": {"min": 0, "median": 0, "max": 0},
+        "salary_distribution": {"labels": [], "counts": []},
+        "demand_score": 0,
+        "ai_plan": {"priority": [], "roadmap": {}, "short_note": ""},
+        "jobs": []
     }
 
-    prompt = f"""
-You are an ATS Resume & Career Intelligence AI.
-
-CRITICAL RULES:
-- Return ONLY valid JSON
-- No markdown
-- No explanations
-- No text outside JSON
-
-JSON FORMAT:
-{{
-  "ats": 0,
-  "required_skills": [],
-  "matched_skills": [],
-  "missing_skills": [],
-  "salary_range": {{ "min": 0, "median": 0, "max": 0 }},
-  "salary_distribution": {{ "labels": [], "counts": [] }},
-  "demand_score": 0,
-  "ai_plan": {{
-    "priority": [],
-    "roadmap": {{}},
-    "short_note": ""
-  }},
-  "jobs": [
-    {{"title":"","company":"","location":""}}
-  ]
-}}
-
-Resume:
-{text}
-"""
-
-    payload = {
-        "model": "deepseek-chat",   # ✅ stable model
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0
-    }
-
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=60
-        )
-
-        data = response.json()
-
-        # ----------------------------------
-        # HANDLE API FAILURE
-        # ----------------------------------
-        if "choices" not in data:
-            return safe_fallback("DeepSeek API error", data)
-
-        content = data["choices"][0]["message"]["content"]
-
-        # ----------------------------------
-        # EXTRACT JSON SAFELY (IMPORTANT)
-        # ----------------------------------
-        try:
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            clean_json = content[start:end]
-
-            parsed = json.loads(clean_json)
-            return normalize_output(parsed)
-
-        except Exception:
-            return safe_fallback("AI returned invalid JSON", content)
-
-    except Exception as e:
-        return safe_fallback("Request failed", str(e))
-
 # -------------------------------------------------
-# NORMALIZE OUTPUT (NEVER BREAK FRONTEND)
+# NORMALIZE OUTPUT (FRONTEND SAFE)
 # -------------------------------------------------
 def normalize_output(data: dict):
     return {
@@ -158,22 +90,75 @@ def normalize_output(data: dict):
     }
 
 # -------------------------------------------------
-# FALLBACK RESPONSE (UI NEVER CRASHES)
+# DEEPSEEK AI ANALYSIS (PRODUCTION SAFE)
 # -------------------------------------------------
-def safe_fallback(error, raw):
-    return {
-        "error": error,
-        "raw": raw,
-        "ats": 0,
-        "required_skills": [],
-        "matched_skills": [],
-        "missing_skills": [],
-        "salary_range": {"min": 0, "median": 0, "max": 0},
-        "salary_distribution": {"labels": [], "counts": []},
-        "demand_score": 0,
-        "ai_plan": {"priority": [], "roadmap": {}, "short_note": ""},
-        "jobs": []
+def deepseek_analyze(text: str):
+    url = "https://api.deepseek.com/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
     }
+
+    prompt = f"""
+You are a STRICT ATS Resume & Career Intelligence AI.
+
+RULES:
+- Output ONLY valid JSON
+- No markdown
+- No explanations
+- No text outside JSON
+
+JSON SCHEMA (DO NOT CHANGE KEYS):
+{{
+  "ats": 0,
+  "required_skills": [],
+  "matched_skills": [],
+  "missing_skills": [],
+  "salary_range": {{ "min": 0, "median": 0, "max": 0 }},
+  "salary_distribution": {{ "labels": [], "counts": [] }},
+  "demand_score": 0,
+  "ai_plan": {{
+    "priority": [],
+    "roadmap": {{}},
+    "short_note": ""
+  }},
+  "jobs": [
+    {{"title":"","company":"","location":""}}
+  ]
+}}
+
+Resume text:
+{text}
+"""
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
+    }
+
+    try:
+        response = requests.post(
+            url, headers=headers, json=payload, timeout=60
+        )
+        data = response.json()
+
+        if "choices" not in data:
+            return safe_fallback("DeepSeek API error", data)
+
+        content = data["choices"][0]["message"]["content"]
+
+        try:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            parsed = json.loads(content[start:end])
+            return normalize_output(parsed)
+        except Exception:
+            return safe_fallback("AI returned invalid JSON", content)
+
+    except Exception as e:
+        return safe_fallback("Request failed", str(e))
 
 # -------------------------------------------------
 # API ENDPOINT
